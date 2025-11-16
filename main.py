@@ -914,8 +914,10 @@ class DanbooruTagger:
 
     def show_about(self):
 
+        link_url = "https://github.com/Quocraft1436/TKtagger"
+
         def open_github(event=None):
-            webbrowser.open("https://github.com/your/repo")
+            webbrowser.open(link_url)
         
         about = tk.Toplevel(root)
         about.title("About")
@@ -924,9 +926,9 @@ class DanbooruTagger:
 
         tk.Label(about, text="TK-tagger", font=("Arial", 16, "bold")).pack(pady=(12, 4))
 
-        tk.Label(about, text="Quocraft_AI", font=("Arial", 10)).pack(pady=(8, 2))
+        tk.Label(about, text="Quocraft_AI / Quocraft 1436", font=("Arial", 10)).pack(pady=(8, 2))
 
-        github = tk.Label(about, text="https://github.com/your/repo", font=("Arial", 10), fg="blue", cursor="hand2")
+        github = tk.Label(about, text=link_url, font=("Arial", 10), fg="blue", cursor="hand2")
         github.pack()
         github.bind("<Button-1>", open_github)
 
