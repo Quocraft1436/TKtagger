@@ -241,69 +241,109 @@ class DanbooruTagger:
             messagebox.showinfo("Done", "Duplicate tags removed.")
 
     def sort_tags(self):
-        if not self.images:
-            messagebox.showinfo("Info", "No images in current folder")
-            return
+            if not self.images:
+                messagebox.showinfo("Info", "No images in current folder")
+                return
 
-        window = tk.Toplevel(self.root)
-        window.title("Choose tags (global)")
-        window.geometry("380x620")
-        window.configure(bg="white")
-        window.resizable(False, True)
-        window.transient(self.root)
-        window.grab_set()
-        window.focus_force()
+            window = tk.Toplevel(self.root)
+            window.title("Choose tags (global)")
+            window.geometry("380x620")
+            
+            window.resizable(False, True)
+            window.transient(self.root)
+            window.grab_set()
+            window.focus_force()
 
-        tk.Label(window, text="Choose tags (global)", font=("Arial", 14, "bold"), bg="white", fg="black").pack(pady=(25, 15))
+            # --- Search bar ---
+            self.search_var = tk.StringVar()
+            self.search_var.trace_add("write", lambda name, index, mode: self.filter_tags(self.search_var.get()))
+            
+            tk.Label(window, text="Choose tags (global)", font=("Arial", 14, "bold")).pack(pady=(10, 5))
 
-        canvas_frame = tk.Frame(window, bg="white")
-        canvas_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 10))
+            search_entry = tk.Entry(window, textvariable=self.search_var, font=("Arial", 10))
+            search_entry.pack(fill="x", padx=20, pady=(0, 10))
+            # ----------------------
 
-        canvas = tk.Canvas(canvas_frame, bg="white", highlightthickness=0)
-        scrollbar = tk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
+            canvas_frame = tk.Frame(window)
+            canvas_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 10))
 
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill=tk.BOTH, expand=True)
+            canvas = tk.Canvas(canvas_frame, highlightthickness=0)
+            scrollbar = tk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
+            canvas.configure(yscrollcommand=scrollbar.set)
 
-        tags_frame = tk.Frame(canvas, bg="white")
-        canvas.create_window((0, 0), window=tags_frame, anchor="nw")
-        tags_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+            scrollbar.pack(side="right", fill="y")
+            canvas.pack(side="left", fill=tk.BOTH, expand=True)
 
-        check_vars = {}
-        for tag in self.all_folder_tags:
-            var = tk.BooleanVar(value=False)
-            check_vars[tag] = var
+            # Save tags_frame to self so it can be updated later
+            self.tags_frame = tags_frame = tk.Frame(canvas)
+            canvas.create_window((0, 0), window=tags_frame, anchor="nw")
+            tags_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 
-            row = tk.Frame(tags_frame, bg="white")
-            row.pack(fill="x", pady=1)
+            # Store check_vars and tags_widgets for filtering functionality
+            self.check_vars = check_vars = {}
+            self.tags_widgets = {} # {tag: (row, chk, label)}
 
-            chk = tk.Checkbutton(row, variable=var, bg="white", selectcolor="white", bd=0, highlightthickness=0, padx=10)
-            chk.pack(side="left")
-            tk.Label(row, text=tag, bg="white", fg="black", font=("Arial", 11), anchor="w").pack(side="left", fill="x", expand=True)
+            for tag in self.all_folder_tags:
+                var = tk.BooleanVar(value=False)
+                check_vars[tag] = var
 
-        pos_frame = tk.Frame(window, bg="white")
-        pos_frame.pack(fill="x", pady=15)
+                row = tk.Frame(tags_frame)
+                row.pack(fill="x", pady=1)
 
-        tk.Label(pos_frame, text="re-sort at:", bg="white", fg="black", font=("Arial", 11)).pack(side="left", padx=20)
+                chk = tk.Checkbutton(row, variable=var, bd=0, highlightthickness=0) 
+                # Delete selectcolor
+                chk.pack(side="left")
+                
+                label = tk.Label(row, text=tag, font=("Arial", 11), anchor="w")
+                label.pack(side="left", fill="x", expand=True)
+                
+                self.tags_widgets[tag] = row # Save only parent widget to hide/show
 
-        pos_var = tk.StringVar(value="beginning")
+            pos_frame = tk.Frame(window)
+            pos_frame.pack(fill="x", pady=15)
 
-        rb_begin = tk.Radiobutton(pos_frame, text="beginning", variable=pos_var, value="beginning", bg="white", selectcolor="#e0e0e0", bd=0, highlightthickness=0)
-        rb_begin.pack(side="left", padx=(40, 80))
+            tk.Label(pos_frame, text="re-sort at:", font=("Arial", 11)).pack(side="left", padx=20)
 
-        rb_end = tk.Radiobutton(pos_frame, text="ending", variable=pos_var, value="ending", bg="white", selectcolor="#e0e0e0", bd=0, highlightthickness=0)
-        rb_end.pack(side="left", padx=0)
+            pos_var = tk.StringVar(value="beginning")
 
-        btn_frame = tk.Frame(window)
-        btn_frame.pack(pady=20)
+            rb_begin = tk.Radiobutton(pos_frame, text="beginning", variable=pos_var, value="beginning", bd=0, highlightthickness=0)
+            rb_begin.pack(side="left", padx=(40, 80))
 
-        tk.Button(btn_frame, text="Deselect", width=12, bg="#cccccc", fg="black",
-                  command=lambda: [v.set(False) for v in check_vars.values()]).pack(side="left", padx=30)
+            rb_end = tk.Radiobutton(pos_frame, text="ending", variable=pos_var, value="ending", bd=0, highlightthickness=0)
+            rb_end.pack(side="left", padx=0)
 
-        tk.Button(btn_frame, text="Confirm", width=12, bg="#4CAF50", fg="white",
-                  font=("Arial", 10, "bold"), command=lambda: self.apply_sort_tags(check_vars, pos_var, window)).pack(side="right", padx=30)
+            btn_frame = tk.Frame(window)
+            btn_frame.pack(pady=20)
 
+            tk.Button(btn_frame, text="Deselect", width=12,
+                      command=lambda: [v.set(False) for v in check_vars.values()]).pack(side="left", padx=30)
+
+            tk.Button(btn_frame, text="Confirm", width=12,
+                      font=("Arial", 10, "bold"), command=lambda: self.apply_sort_tags(check_vars, pos_var, window)).pack(side="right", padx=30)
+    def filter_tags(self, search_term):
+            search_term = search_term.lower().strip()
+            
+            # Hide all previous tags widgets
+            for widget in self.tags_widgets.values():
+                widget.pack_forget()
+
+            # Display matching tags
+            if not search_term:
+                # If the search bar is empty, show all again
+                for tag in self.all_folder_tags:
+                    self.tags_widgets[tag].pack(fill="x", pady=1)
+            else:
+                # Lặp qua tất cả các tags
+                for tag in self.all_folder_tags:
+                    if search_term in tag.lower():
+                        self.tags_widgets[tag].pack(fill="x", pady=1)
+
+            # Update canvas scrollregion
+            self.tags_frame.update_idletasks() # Ensure layout is recalculated
+            canvas = self.tags_frame.master # Assume tags_frame is in Canvas
+    
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        
     def apply_sort_tags(self, check_vars, pos_var, window):
         chosen_tags = [tag for tag, var in check_vars.items() if var.get()]
         if not chosen_tags:
