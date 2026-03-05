@@ -1,0 +1,8 @@
+# Các thư mục cache và môi trường ảo
+__pycache__/
+.venv/
+.env
+
+# Thư mục lưu trữ và cấu hình cá nhân
+Archive/
+settings.ini
