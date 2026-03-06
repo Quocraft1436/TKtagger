@@ -63,7 +63,7 @@ except ImportError:
 IMAGE_EXTENSIONS: set[str] = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 MODEL_FILENAME   = "model.onnx"
 TAGS_FILENAME    = "selected_tags.csv"
-MODEL_INPUT_SIZE = 512   # WD14 standard input resolution
+MODEL_INPUT_SIZE = 448   # WD14 standard input resolution
 
 RATING_TAGS = {
     "general":    "rating:general",

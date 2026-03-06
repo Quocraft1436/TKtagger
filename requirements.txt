@@ -1,0 +1,14 @@
+# Giao diện
+PySide6
+
+# Xử lý ảnh và toán học
+numpy>=1.26.0
+Pillow>=10.0.0
+
+# AI Inference (Chọn 1 trong 2 dòng dưới)
+onnxruntime>=1.17.0        # Nếu chạy bằng CPU
+# onnxruntime-gpu>=1.17.0   # Nếu có GPU NVIDIA (Cần cài thêm CUDA/cuDNN)
+
+# Tiện ích khác (Nếu code của bạn có dùng)
+huggingface-hub            # Để tự động tải model từ HF
+gradio_client              # Nếu dùng chế độ chạy qua API

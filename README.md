@@ -1,64 +1,82 @@
-#TKtagger - PySide6 Version
+# TKtagger
 
-Application management tag for images based on the Danbooru standard, rewritten in PySide6 with an architecture module.
+A powerful image tagging tool built with PySide6, supporting WD14 Tagger and bulk tag management.
 
-##Project Configuration
+> **Note:** This project uses AI assistance for coding.
 
-```
-tktagger/
-├── main.py # Entry Points
-├── main_window.py # Main Window
-├── image_grid.py # Image Grid Widget (ImageGrid, ImageCard)
-├── tag_panel.py # Right Panel Tag (TagPanel)
-├── history_manager.py # Undo/Redo Manager (HistoryManager)
-├── history_window.py # Operation History Window
-├── file_ops.py # Read/Write Files (Load/Save Tags)
-├── Dialogs.py # Dialogs (Sort, Replace, About)
-└── README.md
+---
+
+## Interface
+
+![Main Interface](src/Screenshot_20260305_190358.png)
+
+---
+
+## Features
+
+- **Bulk tag editing** — Add, remove, replace, or sort tags across multiple images at once
+- **WD14 Tagger** — Automatic tagging via local model or external API
+- **Undo / Redo** — Up to 100 steps with a full operation history window (`Edit → Operation history` or `🕐 History`)
+- **Tag search** — Filter and find tags across your image set quickly
+- **Quick tag interaction** — Click directly on a tag to delete or insert
+- **Optimized image loading** — Reduced memory usage and faster display
+- **Multi-language support** — Interface available in multiple languages (i18n)
+- **Command-line argument** — Launch directly into a folder: `python main.py [path_folder]`
+
+---
 
 ## Installation
 
-bash
-pip install PySide6 Pillow
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-## Running the application
+## Running
 
-bash
-python main.py
+```bash
+python3 main.py
 
-## New features (compared to Tkinter)
+# Open directly into a specific folder
+python3 main.py /path/to/folder
+```
 
-### ✅ History window (Operation history)
-- Open from the **Edit → Operation history** menu or the **🕐 History** button on the toolbar
-- Displays a list of operations that can be Undo and Redo
-- Undo/Redo buttons directly in the window
-- Button to clear all history
+---
 
-### ✅ Ctrl+Z (Undo)
-- Completes the last operation performed
-- Supports up to 100 undo steps
+## Keyboard Shortcuts
 
-### ✅ Ctrl+Y (Redo)
-- Redoes the previously undone operation
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+A` | Select all images |
+| `Ctrl+I` | Invert selection |
+| `Ctrl+D` | Deselect all |
+| `Ctrl+Z` | Undo |
+| `Ctrl+Y` | Redo |
 
-### ✅ Operations tracked in history:
+---
 
-- Add tag Selected Image - Remove tag from selected image
-- Add tags to individual images
-- Remove duplicate tags
-- Sort tags
-- Delete tags in bulk
-- Replace tags in bulk
+## Project Structure
 
-## Disable Keys
+```
+tktagger/
+├── main.py            # Entry point
+├── main_window.py     # Main window
+├── image_grid.py      # Image grid widget (ImageGrid, ImageCard)
+├── tag_panel.py       # Right panel tag (TagPanel)
+├── history_manager.py # Undo/Redo manager (HistoryManager)
+├── history_window.py  # Operation history window
+├── file_ops.py        # Read/write files (load/save tags)
+├── Dialogs.py         # Dialogs (Sort, Replace, About)
+└── README.md
+```
 
-| Key | Function |
-|------|-------------|
-| Ctrl+A | Select all images |
-| Ctrl+I | Invert selection |
-| Ctrl+D | Deselect all |
-| Ctrl+S | Save |
-| Ctrl+Z | Undo |
-| Ctrl+Y | Redo |
-| Ctrl+O | ​​Open folder |
-| Ctrl+T | WD14 Tagger
+---
+
+## Roadmap
+
+1. ✅ Basic tagger UI
+2. ✅ Integrated WD14
+3. ✅ Multiple language support
+4. ⬜ System dictionary tags
+5. ⬜ Redesigned UI
