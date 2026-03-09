@@ -177,7 +177,8 @@
     "waifu_browse_onnx_title": "Select ONNX model file",
     "waifu_browse_onnx_filter": "ONNX model (*.onnx);;All files (*)",
     "waifu_browse_csv_title": "Select tags CSV file",
-    "waifu_browse_csv_filter": "CSV files (*.csv);;All files (*)"
+    "waifu_browse_csv_filter": "CSV files (*.csv);;All files (*)",
+    "menu_calc_dataset": "Dataset Calculator"
   },
   "vi": {
     "app_title": "TKtagger (Danbooru Tagger) - PySide6",
@@ -357,6 +358,7 @@
     "waifu_browse_onnx_title": "Ch\u1ecdn file ONNX",
     "waifu_browse_onnx_filter": "ONNX model (*.onnx);;All files (*)",
     "waifu_browse_csv_title": "Ch\u1ecdn file CSV tags",
-    "waifu_browse_csv_filter": "CSV files (*.csv);;All files (*)"
+    "waifu_browse_csv_filter": "CSV files (*.csv);;All files (*)",
+    "menu_calc_dataset": "Tính Dataset"
   }
 }

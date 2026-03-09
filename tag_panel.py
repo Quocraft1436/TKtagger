@@ -30,11 +30,6 @@ class TagPanel(QWidget):
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(6)
 
-        # Lưu lại các label/button cần đổi text vào self
-        self._title_lbl = QLabel()
-        self._title_lbl.setStyleSheet("font-size: 13px; font-weight: bold;")
-        layout.addWidget(self._title_lbl)
-
         search_row = QHBoxLayout()
         self._search_lbl = QLabel()
         self._search_lbl.setFixedWidth(40) # Tăng nhẹ độ rộng cho Tiếng Anh (Search:)
@@ -83,7 +78,6 @@ class TagPanel(QWidget):
 
     # 3. Phương thức cập nhật ngôn ngữ
     def retranslate_ui(self):
-        self._title_lbl.setText("🔍 " + tr("tag_panel_title"))
         self._search_lbl.setText(tr("search_label") + ":")
         self.search_edit.setPlaceholderText(tr("search_placeholder"))
         self._deselect_btn.setText(tr("deselect_filters_btn"))

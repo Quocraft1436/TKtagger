@@ -4,7 +4,7 @@ main_window.py - Cửa sổ chính của ứng dụng TKtagger (PySide6)
 import os
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-    QSplitter, QLabel, QLineEdit, QPushButton,
+    QDockWidget, QLabel, QLineEdit, QPushButton,
     QTreeWidget, QTreeWidgetItem, QMessageBox,
     QFileDialog, QFrame, QStatusBar, QToolBar,
 )
@@ -18,6 +18,7 @@ from image_grid import ImageGrid
 from tag_panel import TagPanel
 from dialogs import SortTagsDialog, ReplaceTagsDialog, AboutDialog
 from waifu_tagger_window import WaifuTaggerWindow
+from calc_dataset import CalcDatasetDialog
 from i18n import tr, set_language, get_language
 
 
@@ -81,11 +82,15 @@ class MainWindow(QMainWindow):
         self._act_rm_dup.setText(tr("menu_remove_dup"))
         self._act_sort.setText(tr("menu_sort_tags"))
         self._act_waifu.setText(tr("menu_waifu_tagger"))
+        self._act_calc_dataset.setText(tr("menu_calc_dataset"))
         self._help_menu.setTitle(tr("menu_help"))
         self._act_about.setText(tr("menu_about"))
 
         # Left panel
-        self._dir_lbl.setText(tr("folder_label"))
+        self._folder_dock.setWindowTitle(tr("folder_label"))
+
+        # Right panel
+        self._tag_dock.setWindowTitle("🔍 " + tr("tag_panel_title"))
 
         # Top toolbar
         self._sel_all_btn.setText(tr("select_all_btn"))
@@ -178,10 +183,15 @@ class MainWindow(QMainWindow):
         self._act_waifu.setShortcut("Ctrl+T")
         self._act_waifu.triggered.connect(self.open_waifu_tagger)
 
+        self._act_calc_dataset = QAction("", self)
+        self._act_calc_dataset.setShortcut("Ctrl+Shift+D")
+        self._act_calc_dataset.triggered.connect(self.open_calc_dataset)
+
         self.tool_menu.addAction(self._act_rm_dup)
         self.tool_menu.addAction(self._act_sort)
         self.tool_menu.addSeparator()
         self.tool_menu.addAction(self._act_waifu)
+        self.tool_menu.addAction(self._act_calc_dataset)
 
         # Language menu
         self._lang_menu = menubar.addMenu("Language")
@@ -206,45 +216,14 @@ class MainWindow(QMainWindow):
     def setup_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
-        main_layout = QHBoxLayout(central)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-
-        splitter = QSplitter(Qt.Horizontal)
-        main_layout.addWidget(splitter)
-
-        # ── Left: Folder tree ──
-        left_frame = QWidget()
-        left_frame.setMinimumWidth(200)
-        left_frame.setMaximumWidth(300)
-        left_layout = QVBoxLayout(left_frame)
-        left_layout.setContentsMargins(4, 4, 4, 4)
-
-        self._dir_lbl = QLabel()
-        self._dir_lbl.setStyleSheet("font-size: 13px; font-weight: bold;")
-        left_layout.addWidget(self._dir_lbl)
-
-        self.dir_tree = QTreeWidget()
-        self.dir_tree.setHeaderHidden(True)
-        self.dir_tree.itemClicked.connect(self._on_tree_item_clicked)
-        left_layout.addWidget(self.dir_tree)
-
-        splitter.addWidget(left_frame)
-
-        # ── Left 2nd: Tag panel ──
-        self.tag_panel = TagPanel()
-        self.tag_panel.setMinimumWidth(250)
-        self.tag_panel.setMaximumWidth(350)
-        self.tag_panel.filter_changed.connect(self._on_tag_filter_changed)
-        self.tag_panel.tag_insert_requested.connect(self._insert_tag_to_global)
-        self.tag_panel.delete_tags_requested.connect(self.open_delete_tag_window)
-        self.tag_panel.replace_tags_requested.connect(self.open_replace_tag_window)
-        splitter.addWidget(self.tag_panel)
-
-        # ── Center: Image grid + toolbar ──
-        center_frame = QWidget()
-        center_layout = QVBoxLayout(center_frame)
+        center_layout = QVBoxLayout(central)
         center_layout.setContentsMargins(4, 4, 4, 4)
         center_layout.setSpacing(4)
+        self.setDockOptions(
+            QMainWindow.AnimatedDocks |
+            QMainWindow.AllowNestedDocks |
+            QMainWindow.AllowTabbedDocks
+        )
 
         # Top toolbar
         top_bar = QWidget()
@@ -285,7 +264,7 @@ class MainWindow(QMainWindow):
         col_layout.setContentsMargins(4, 0, 4, 0)
         self._col_lbl = QLabel()
         col_layout.addWidget(self._col_lbl)
-        for n in [1, 2, 3, 4, 5, 6, 8]:
+        for n in [1, 2, 3, 4, 5, 6, 7, 8]:
             btn = QPushButton(str(n))
             btn.setFixedWidth(32)
             btn.clicked.connect(lambda _, num=n: self._set_columns(num))
@@ -325,11 +304,51 @@ class MainWindow(QMainWindow):
         bottom_layout.addWidget(self._rem_tag_btn)
         center_layout.addWidget(bottom_bar)
 
-        splitter.addWidget(center_frame)
+        # Folder Tree
+        folder_dock = QDockWidget(self)
+        folder_dock.setObjectName("FolderDock")
+        folder_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
+        folder_dock.setFeatures(
+            QDockWidget.DockWidgetMovable
+        )
 
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 1)
-        splitter.setStretchFactor(2, 0)
+        folder_widget = QWidget()
+        folder_widget.setMinimumWidth(180)
+        folder_layout = QVBoxLayout(folder_widget)
+        folder_layout.setContentsMargins(4, 4, 4, 4)
+
+        self.dir_tree = QTreeWidget()
+        self.dir_tree.setHeaderHidden(True)
+        self.dir_tree.itemClicked.connect(self._on_tree_item_clicked)
+        folder_layout.addWidget(self.dir_tree)
+
+        folder_dock.setWidget(folder_widget)
+        self.addDockWidget(Qt.LeftDockWidgetArea, folder_dock)
+
+        # Tag Panel
+        tag_dock = QDockWidget(self)
+        tag_dock.setObjectName("TagDock")
+        tag_dock.setAllowedAreas(Qt.AllDockWidgetAreas)
+        tag_dock.setFeatures(
+            QDockWidget.DockWidgetMovable
+        )
+
+        self.tag_panel = TagPanel()
+        self.tag_panel.setMinimumWidth(220)
+        self.tag_panel.filter_changed.connect(self._on_tag_filter_changed)
+        self.tag_panel.tag_insert_requested.connect(self._insert_tag_to_global)
+        self.tag_panel.delete_tags_requested.connect(self.open_delete_tag_window)
+        self.tag_panel.replace_tags_requested.connect(self.open_replace_tag_window)
+
+        tag_dock.setWidget(self.tag_panel)
+        self.addDockWidget(Qt.LeftDockWidgetArea, folder_dock)
+
+        self.addDockWidget(Qt.LeftDockWidgetArea, tag_dock)
+
+        self.splitDockWidget(folder_dock, tag_dock, Qt.Horizontal)
+
+        self._folder_dock = folder_dock
+        self._tag_dock = tag_dock
 
         self._selected_images: set = set()
 
@@ -816,6 +835,10 @@ class MainWindow(QMainWindow):
             root_folder=self.root_folder,
         )
         dlg.tagging_started.connect(self._on_tagging_started)
+        dlg.exec()
+
+    def open_calc_dataset(self):
+        dlg = CalcDatasetDialog(root_folder=self.root_folder, parent=self)
         dlg.exec()
 
     def _on_tagging_started(self, config: dict):

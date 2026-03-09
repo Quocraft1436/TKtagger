@@ -14,7 +14,7 @@ def main():
 
     app = QApplication(sys.argv)
     app.setApplicationName("TKtagger")
-    app.setApplicationVersion("1.2b")
+    app.setApplicationVersion("1.3.0")
 
     window = MainWindow(initial_path=args.path)
     window.show()
