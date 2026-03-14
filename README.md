@@ -8,7 +8,7 @@ A powerful image tagging tool built with PySide6, supporting WD14 Tagger and bul
 
 ## Interface
 
-![Main Interface](src/Screenshot_20260305_190358.png)
+![Main Interface](src/Screenshot_20260314_121954.png)
 
 ---
 
