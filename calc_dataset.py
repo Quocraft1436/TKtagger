@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QColor
 
+from i18n import tr
+
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -62,13 +64,13 @@ def _scan_folders(root: str) -> list:
 class CalcDatasetDialog(QDialog):
     def __init__(self, root_folder: str = None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Dataset Repeat Calculator")
         self.setMinimumSize(860, 640)
         self.resize(980, 720)
         self.root_folder = root_folder
         self._folders: list = []
         self._results: list = []
         self._build_ui()
+        self.retranslate_ui()
         if root_folder:
             self._folder_edit.setText(root_folder)
             self._scan()
@@ -84,46 +86,44 @@ class CalcDatasetDialog(QDialog):
         top = QHBoxLayout()
         top.setSpacing(6)
 
-        top.addWidget(QLabel("Folder:"))
+        self._folder_lbl = QLabel()
+        top.addWidget(self._folder_lbl)
         self._folder_edit = QLineEdit()
         self._folder_edit.setReadOnly(True)
-        self._folder_edit.setPlaceholderText("Select root dataset folder...")
         top.addWidget(self._folder_edit, stretch=1)
 
-        browse_btn = QPushButton("Browse...")
-        browse_btn.setFixedWidth(75)
-        browse_btn.clicked.connect(self._browse_folder)
-        top.addWidget(browse_btn)
+        self._browse_btn = QPushButton()
+        self._browse_btn.setFixedWidth(75)
+        self._browse_btn.clicked.connect(self._browse_folder)
+        top.addWidget(self._browse_btn)
 
-        scan_btn = QPushButton("Scan")
-        scan_btn.setFixedWidth(65)
-        scan_btn.setStyleSheet("background:#2196F3; color:white; font-weight:bold;")
-        scan_btn.clicked.connect(self._scan)
-        top.addWidget(scan_btn)
+        self._scan_btn = QPushButton()
+        self._scan_btn.setFixedWidth(65)
+        self._scan_btn.setStyleSheet("background:#2196F3; color:white; font-weight:bold;")
+        self._scan_btn.clicked.connect(self._scan)
+        top.addWidget(self._scan_btn)
 
         root.addLayout(top)
 
         # ── folder table header bar ──
         fbar = QHBoxLayout()
         fbar.setSpacing(6)
-        self._status_lbl = QLabel("No folder scanned yet.")
+        self._status_lbl = QLabel()
         self._status_lbl.setStyleSheet("color:#aaa; font-style:italic;")
         fbar.addWidget(self._status_lbl)
         fbar.addStretch()
-        sel_all = QPushButton("All")
-        sel_all.setFixedWidth(48)
-        sel_all.clicked.connect(self._select_all_folders)
-        desel_all = QPushButton("None")
-        desel_all.setFixedWidth(50)
-        desel_all.clicked.connect(self._deselect_all_folders)
-        fbar.addWidget(sel_all)
-        fbar.addWidget(desel_all)
+        self._sel_all_btn = QPushButton()
+        self._sel_all_btn.setFixedWidth(48)
+        self._sel_all_btn.clicked.connect(self._select_all_folders)
+        self._desel_all_btn = QPushButton()
+        self._desel_all_btn.setFixedWidth(50)
+        self._desel_all_btn.clicked.connect(self._deselect_all_folders)
+        fbar.addWidget(self._sel_all_btn)
+        fbar.addWidget(self._desel_all_btn)
         root.addLayout(fbar)
 
         # ── folder table ──
         self._folder_table = QTableWidget(0, 4)
-        self._folder_table.setHorizontalHeaderLabels(
-            ["", "Folder (relative path)", "Tagged Images", "Current Repeat"])
         hh = self._folder_table.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.Fixed)
         self._folder_table.setColumnWidth(0, 36)
@@ -141,14 +141,22 @@ class CalcDatasetDialog(QDialog):
         # ── Middle ──
         middle = QHBoxLayout()
 
-        middle.addWidget(QLabel("Ratio:"))
+        self._ratio_lbl = QLabel()
+        middle.addWidget(self._ratio_lbl)
         self._ratio_edit = QLineEdit()
         self._ratio_edit.setPlaceholderText("e.g. 1,1,1.5")
         self._ratio_edit.setFixedWidth(130)
         middle.addWidget(self._ratio_edit)
 
+        self._quick_ratio_btn = QPushButton("~")
+        self._quick_ratio_btn.setToolTip(tr("calc_quick_fill_tip"))
+        self._quick_ratio_btn.setFixedWidth(30)
+        self._quick_ratio_btn.clicked.connect(self._quick_fill_ratio)
+        middle.addWidget(self._quick_ratio_btn)
+
         middle.addSpacing(8)
-        middle.addWidget(QLabel("Batch:"))
+        self._batch_lbl = QLabel()
+        middle.addWidget(self._batch_lbl)
         self._batch_spin = QSpinBox()
         self._batch_spin.setRange(1, 512)
         self._batch_spin.setValue(4)
@@ -156,7 +164,8 @@ class CalcDatasetDialog(QDialog):
         middle.addWidget(self._batch_spin)
 
         middle.addSpacing(8)
-        middle.addWidget(QLabel("Epochs:"))
+        self._epoch_lbl = QLabel()
+        middle.addWidget(self._epoch_lbl)
         self._epoch_spin = QSpinBox()
         self._epoch_spin.setRange(1, 10000)
         self._epoch_spin.setValue(10)
@@ -164,33 +173,24 @@ class CalcDatasetDialog(QDialog):
         middle.addWidget(self._epoch_spin)
 
         middle.addSpacing(8)
-        self._ceil_cb = QCheckBox("Ceil steps")
+        self._ceil_cb = QCheckBox()
         self._ceil_cb.setChecked(True)
-        self._ceil_cb.setToolTip(
-            "Checked  -> math.ceil(images / batch) x epochs\n"
-            "           Matches accelerate / diffusers trainer behaviour\n"
-            "           (runs leftover partial batch at end of epoch)\n\n"
-            "Unchecked -> (images // batch) x epochs\n"
-            "           Strict floor — drops remainder"
-        )
         middle.addWidget(self._ceil_cb)
 
         middle.addSpacing(8)
-        calc_btn = QPushButton("Calculate")
-        calc_btn.setStyleSheet("background:#FF9800; color:white; font-weight:bold; padding:4px 14px;")
-        calc_btn.clicked.connect(self._calculate)
-        middle.addWidget(calc_btn)
+        self._calc_btn = QPushButton()
+        self._calc_btn.setStyleSheet("background:#FF9800; color:white; font-weight:bold; padding:4px 14px;")
+        self._calc_btn.clicked.connect(self._calculate)
+        middle.addWidget(self._calc_btn)
         root.addLayout(middle)
 
         # ── result table header bar ──
-        self._result_lbl = QLabel("Results — (not calculated yet)")
+        self._result_lbl = QLabel()
         self._result_lbl.setStyleSheet("color:#aaa; font-style:italic;")
         root.addWidget(self._result_lbl)
 
         # ── result table ──
         self._result_table = QTableWidget(0, 5)
-        self._result_table.setHorizontalHeaderLabels(
-            ["Folder", "Tagged Images", "Ratio", "Repeats", "Total Images (repeat x count)"])
         rh = self._result_table.horizontalHeader()
         rh.setSectionResizeMode(0, QHeaderView.Stretch)
         for col, w in [(1, 110), (2, 70), (3, 80), (4, 210)]:
@@ -203,7 +203,7 @@ class CalcDatasetDialog(QDialog):
 
         # ── summary row ──
         srow = QHBoxLayout()
-        self._total_steps_lbl = QLabel("Total steps: -")
+        self._total_steps_lbl = QLabel()
         self._total_steps_lbl.setStyleSheet("font-size:14px; font-weight:bold; color:#4CAF50;")
         self._total_images_lbl = QLabel("")
         self._total_images_lbl.setStyleSheet("color:#aaa;")
@@ -216,33 +216,77 @@ class CalcDatasetDialog(QDialog):
         # ── bottom button bar ──
         bot = QHBoxLayout()
         bot.setSpacing(8)
-        rename_info = QLabel(
-            "Apply: renames each folder  <b>name</b> -> <b>N_name</b>  "
-            "(existing numeric prefix is replaced)")
-        rename_info.setTextFormat(Qt.RichText)
-        rename_info.setStyleSheet("color:#888; font-size:11px;")
-        bot.addWidget(rename_info)
+        self._rename_info_lbl = QLabel()
+        self._rename_info_lbl.setTextFormat(Qt.RichText)
+        self._rename_info_lbl.setStyleSheet("color:#888; font-size:11px;")
+        bot.addWidget(self._rename_info_lbl)
         bot.addStretch()
 
-        self._apply_btn = QPushButton("Apply Rename")
+        self._apply_btn = QPushButton()
         self._apply_btn.setStyleSheet(
             "background:#4CAF50; color:white; font-weight:bold; padding:5px 18px;")
         self._apply_btn.setEnabled(False)
         self._apply_btn.clicked.connect(self._apply_rename)
         bot.addWidget(self._apply_btn)
 
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setFixedWidth(80)
-        cancel_btn.clicked.connect(self.reject)
-        bot.addWidget(cancel_btn)
+        self._cancel_btn = QPushButton()
+        self._cancel_btn.setFixedWidth(80)
+        self._cancel_btn.clicked.connect(self.reject)
+        bot.addWidget(self._cancel_btn)
 
         root.addLayout(bot)
+
+    # ── i18n ──────────────────────────────────────────────────────────────────
+
+    def retranslate_ui(self):
+        self.setWindowTitle(tr("calc_title"))
+
+        # Top bar
+        self._folder_lbl.setText(tr("calc_folder_label"))
+        self._folder_edit.setPlaceholderText(tr("calc_folder_placeholder"))
+        self._browse_btn.setText(tr("calc_browse_btn"))
+        self._scan_btn.setText(tr("calc_scan_btn"))
+
+        # Folder table
+        self._status_lbl.setText(tr("calc_no_folder_scanned"))
+        self._sel_all_btn.setText(tr("calc_sel_all_btn"))
+        self._desel_all_btn.setText(tr("calc_desel_all_btn"))
+        self._folder_table.setHorizontalHeaderLabels([
+            "",
+            tr("calc_col_folder"),
+            tr("calc_col_tagged_images"),
+            tr("calc_col_current_repeat"),
+        ])
+
+        # Middle controls
+        self._ratio_lbl.setText(tr("calc_ratio_label"))
+        self._batch_lbl.setText(tr("calc_batch_label"))
+        self._epoch_lbl.setText(tr("calc_epoch_label"))
+        self._ceil_cb.setText(tr("calc_ceil_steps_cb"))
+        self._ceil_cb.setToolTip(tr("calc_ceil_steps_tooltip"))
+        self._calc_btn.setText(tr("calc_calculate_btn"))
+
+        # Result table
+        self._result_lbl.setText(tr("calc_results_pending"))
+        self._result_table.setHorizontalHeaderLabels([
+            tr("calc_col_folder"),
+            tr("calc_col_tagged_images"),
+            tr("calc_col_ratio"),
+            tr("calc_col_repeats"),
+            tr("calc_col_total_images"),
+        ])
+
+        # Summary / bottom
+        self._total_steps_lbl.setText(tr("calc_total_steps_empty"))
+        self._rename_info_lbl.setText(tr("calc_rename_info"))
+        self._apply_btn.setText(tr("calc_apply_rename_btn"))
+        self._cancel_btn.setText(tr("calc_cancel_btn"))
 
     # ── scanning ──────────────────────────────────────────────────────────────
 
     def _browse_folder(self):
         from PySide6.QtWidgets import QFileDialog
-        folder = QFileDialog.getExistingDirectory(self, "Select root dataset folder")
+        folder = QFileDialog.getExistingDirectory(self, tr("calc_browse_dialog_title"))
         if folder:
             self.root_folder = folder
             self._folder_edit.setText(folder)
@@ -251,14 +295,15 @@ class CalcDatasetDialog(QDialog):
     def _scan(self):
         root = self._folder_edit.text().strip()
         if not root or not os.path.isdir(root):
-            QMessageBox.warning(self, "No Folder", "Please select a valid root folder first.")
+            QMessageBox.warning(self, tr("calc_no_folder_title"), tr("calc_no_folder_msg"))
             return
         self.root_folder = root
         self._folders = _scan_folders(root)
         self._populate_folder_table()
         self._clear_results()
         self._status_lbl.setText(
-            f"Found {len(self._folders)} folder(s) with tagged images")
+            tr("calc_scan_result", count=len(self._folders))
+        )
 
     def _populate_folder_table(self):
         self._folder_table.setRowCount(0)
@@ -314,21 +359,28 @@ class CalcDatasetDialog(QDialog):
             ratios.append(ratios[-1])
         return ratios[:n]
 
+    def _quick_fill_ratio(self):
+        sel_indices = self._get_selected_indices()
+        if not sel_indices:
+            return
+        quick_val = ",".join(["1"] * len(sel_indices))
+        self._ratio_edit.setText(quick_val)
+
     def _calculate(self):
         sel = self._get_selected_indices()
         if not sel:
-            QMessageBox.warning(self, "No Selection", "Please select at least one folder.")
+            QMessageBox.warning(self, tr("calc_no_selection_title"), tr("calc_no_selection_msg"))
             return
 
         ratio_text = self._ratio_edit.text().strip()
         if not ratio_text:
-            QMessageBox.warning(self, "No Ratio", "Please enter a ratio string.")
+            QMessageBox.warning(self, tr("calc_no_ratio_title"), tr("calc_no_ratio_msg"))
             return
 
         try:
             ratios = self._parse_ratios(ratio_text, len(sel))
         except ValueError as e:
-            QMessageBox.critical(self, "Invalid Ratio", str(e))
+            QMessageBox.critical(self, tr("calc_invalid_ratio_title"), str(e))
             return
 
         batch     = self._batch_spin.value()
@@ -386,23 +438,27 @@ class CalcDatasetDialog(QDialog):
             rep_it.setFont(QFont("", -1, QFont.Bold))
 
         self._result_lbl.setText(
-            f"Results - {len(self._results)} folder(s)  |  "
-            f"{rounding_label} x {epochs} epochs"
+            tr("calc_results_summary",
+               count=len(self._results),
+               rounding=rounding_label,
+               epochs=epochs)
         )
         self._result_lbl.setStyleSheet("color:#ccc;")
-        self._total_steps_lbl.setText(f"Total steps: {total_steps:,}")
+        self._total_steps_lbl.setText(tr("calc_total_steps", steps=f"{total_steps:,}"))
         self._total_images_lbl.setText(
-            f"Weighted images: {total_weighted:,}   "
-            f"Batch: {batch}   Epochs: {epochs}"
+            tr("calc_weighted_summary",
+               weighted=f"{total_weighted:,}",
+               batch=batch,
+               epochs=epochs)
         )
         self._apply_btn.setEnabled(True)
 
     def _clear_results(self):
         self._results = []
         self._result_table.setRowCount(0)
-        self._total_steps_lbl.setText("Total steps: -")
+        self._total_steps_lbl.setText(tr("calc_total_steps_empty"))
         self._total_images_lbl.setText("")
-        self._result_lbl.setText("Results - (not calculated yet)")
+        self._result_lbl.setText(tr("calc_results_pending"))
         self._result_lbl.setStyleSheet("color:#aaa; font-style:italic;")
         self._apply_btn.setEnabled(False)
 
@@ -420,15 +476,13 @@ class CalcDatasetDialog(QDialog):
                 preview_lines.append(f"  {fd['name']}  ->  {new_name}")
 
         if not preview_lines:
-            QMessageBox.information(self, "Nothing to rename",
-                                    "All folders already have the correct repeat prefix.")
+            QMessageBox.information(self, tr("calc_nothing_rename_title"),
+                                    tr("calc_nothing_rename_msg"))
             return
 
         resp = QMessageBox.question(
-            self, "Confirm Rename",
-            "The following folders will be renamed:\n\n"
-            + "\n".join(preview_lines)
-            + "\n\nProceed?",
+            self, tr("calc_confirm_rename_title"),
+            tr("calc_confirm_rename_msg", preview="\n".join(preview_lines)),
             QMessageBox.Yes | QMessageBox.No
         )
         if resp != QMessageBox.Yes:
@@ -449,8 +503,8 @@ class CalcDatasetDialog(QDialog):
                 errors.append(f"{fd['name']}: {e}")
 
         self._populate_folder_table()
-        msg = f"Renamed {renamed} folder(s) successfully."
+        msg = tr("calc_rename_done_msg", count=renamed)
         if errors:
-            msg += "\n\nErrors:\n" + "\n".join(errors)
-        QMessageBox.information(self, "Done", msg)
+            msg += "\n\n" + tr("calc_rename_errors", errors="\n".join(errors))
+        QMessageBox.information(self, tr("calc_rename_done_title"), msg)
         self._clear_results()
