@@ -8,10 +8,10 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QDockWidget, QLabel, QLineEdit, QPushButton,
     QTreeWidget, QTreeWidgetItem, QMessageBox,
-    QFileDialog, QFrame, QStatusBar, QToolBar, QInputDialog,
+    QFileDialog, QSpinBox, QStatusBar, QToolBar, QInputDialog,
 )
-from PySide6.QtCore import Qt, QSize, QSettings, Signal
-from PySide6.QtGui import QAction, QKeySequence, QShortcut
+from PySide6.QtCore import Qt, QSettings, Signal
+from PySide6.QtGui import QAction, QKeySequence, QShortcut, QIcon
 
 from history_manager import HistoryManager
 from history_window import HistoryWindow
@@ -55,7 +55,6 @@ class MainWindow(QMainWindow):
 
         self.setup_menu()
         self.setup_ui()
-        self.setup_shortcuts()
         self.retranslate_ui()           # first paint with correct language
 
         if initial_path and os.path.exists(initial_path):
@@ -91,6 +90,9 @@ class MainWindow(QMainWindow):
         self._edit_menu.setTitle(tr("menu_edit"))
         self.act_undo.setText(tr("menu_undo"))
         self.act_redo.setText(tr("menu_redo"))
+        self.act_select_all.setText(tr("menu_select_all"))
+        self.act_deselect_all.setText(tr("menu_deselect_all"))
+        self.act_invert_selection.setText(tr("menu_invert_selection"))
         self._act_history_action.setText(tr("menu_history"))
         self.tool_menu.setTitle(tr("menu_tool"))
         self._act_rm_dup.setText(tr("menu_remove_dup"))
@@ -109,7 +111,7 @@ class MainWindow(QMainWindow):
         self._act_dict_open_mgr.setText(tr("menu_dict_manager"))
 
         # Left panel
-        self._folder_dock.setWindowTitle(tr("folder_label"))
+        self._folder_dock.setWindowTitle("📁 " +tr("folder_label"))
 
         # Right panel
         self._tag_dock.setWindowTitle("🔍 " + tr("tag_panel_title"))
@@ -172,6 +174,7 @@ class MainWindow(QMainWindow):
         self._file_menu.addAction(self._act_quit)
 
         # Edit
+            #todo add select all, deselect all, invert selection actions here with shortcuts, so they work even when focus is on image grid
         self._edit_menu = menubar.addMenu("")
         self.act_undo = QAction("", self)
         self.act_undo.setShortcut(QKeySequence.Undo)
@@ -186,10 +189,26 @@ class MainWindow(QMainWindow):
         self._act_history_action = QAction("", self)
         self._act_history_action.triggered.connect(self.show_history_window)
 
+        self.act_select_all = QAction("", self)
+        self.act_select_all.setShortcut(QKeySequence.SelectAll)
+        self.act_select_all.triggered.connect(self.select_all_images)
+
+        self.act_deselect_all = QAction("", self)
+        self.act_deselect_all.setShortcut(QKeySequence("Ctrl+D"))
+        self.act_deselect_all.triggered.connect(self.deselect_all_images)
+
+        self.act_invert_selection = QAction("", self)
+        self.act_invert_selection.setShortcut(QKeySequence("Ctrl+I"))
+        self.act_invert_selection.triggered.connect(self.invert_image_selection)
+
         self._edit_menu.addAction(self.act_undo)
         self._edit_menu.addAction(self.act_redo)
         self._edit_menu.addSeparator()
         self._edit_menu.addAction(self._act_history_action)
+        self._edit_menu.addSeparator()
+        self._edit_menu.addAction(self.act_select_all)
+        self._edit_menu.addAction(self.act_deselect_all)
+        self._edit_menu.addAction(self.act_invert_selection)
 
         # Tool
         self.tool_menu = menubar.addMenu("")
@@ -276,45 +295,47 @@ class MainWindow(QMainWindow):
 
         self._sel_all_btn = QPushButton()
         self._sel_all_btn.setStyleSheet("background:#4CAF50; color:white; font-weight:bold; padding:4px 8px;")
+        self._sel_all_btn.setIcon(QIcon.fromTheme("edit-select-all"))
         self._sel_all_btn.clicked.connect(self.select_all_images)
 
         self._inv_sel_btn = QPushButton()
         self._inv_sel_btn.setStyleSheet("background:#FF9800; color:white; font-weight:bold; padding:4px 8px;")
-        self._inv_sel_btn.clicked.connect(self.invert_selection)
+        self._inv_sel_btn.setIcon(QIcon.fromTheme("edit-select-invert"))
+        self._inv_sel_btn.clicked.connect(self.invert_image_selection)
 
         self._desel_btn = QPushButton()
         self._desel_btn.setStyleSheet("background:#f44336; color:white; font-weight:bold; padding:4px 8px;")
+        self._desel_btn.setIcon(QIcon.fromTheme("edit-select-none"))
         self._desel_btn.clicked.connect(self.deselect_all_images)
 
         self._save_btn = QPushButton()
         self._save_btn.setStyleSheet("background:#2196F3; color:white; font-weight:bold; padding:4px 8px;")
+        self._save_btn.setIcon(QIcon.fromTheme("document-save"))
         self._save_btn.clicked.connect(self.save_all)
 
         self._hist_btn = QPushButton()
         self._hist_btn.setStyleSheet("background:#607D8B; color:white; padding:4px 8px;")
+        self._hist_btn.setIcon(QIcon.fromTheme("view-history"))
         self._hist_btn.clicked.connect(self.show_history_window)
+
+        # Column controls
+        self.col_spin = QSpinBox()
+        self.col_spin.setRange(1, 8)  # Giới hạn từ 1 đến 8
+        self.col_spin.setFixedWidth(50)
+        self.col_spin.valueChanged.connect(self._set_columns)
+
+        # Column label
+        self._col_lbl = QLabel()
 
         top_layout.addWidget(self._sel_all_btn)
         top_layout.addWidget(self._inv_sel_btn)
         top_layout.addWidget(self._desel_btn)
         top_layout.addWidget(self._save_btn)
         top_layout.addStretch()
+        top_layout.addWidget(self._col_lbl)
+        top_layout.addWidget(self.col_spin)
         top_layout.addWidget(self._hist_btn)
         center_layout.addWidget(top_bar)
-
-        # Column controls
-        col_bar = QWidget()
-        col_layout = QHBoxLayout(col_bar)
-        col_layout.setContentsMargins(4, 0, 4, 0)
-        self._col_lbl = QLabel()
-        col_layout.addWidget(self._col_lbl)
-        for n in [1, 2, 3, 4, 5, 6, 7, 8]:
-            btn = QPushButton(str(n))
-            btn.setFixedWidth(32)
-            btn.clicked.connect(lambda _, num=n: self._set_columns(num))
-            col_layout.addWidget(btn)
-        col_layout.addStretch()
-        center_layout.addWidget(col_bar)
 
         # Image grid
         self.image_grid = ImageGrid()
@@ -326,22 +347,23 @@ class MainWindow(QMainWindow):
 
         # Bottom global tag bar
         bottom_bar = QWidget()
-        bottom_bar.setStyleSheet("background:#3c3c3c;")
         bottom_layout = QHBoxLayout(bottom_bar)
         bottom_layout.setContentsMargins(8, 6, 8, 6)
 
-        bottom_layout.addWidget(QLabel("Tag:"))
         self.global_tag_entry = self._global_tag_entry = QLineEdit()
+        self.global_tag_entry.addAction(QIcon.fromTheme("tag"), QLineEdit.ActionPosition.LeadingPosition)
         self._global_tag_entry.setClearButtonEnabled(True)
         self._global_tag_entry.setFixedHeight(30)
         bottom_layout.addWidget(self._global_tag_entry, stretch=1)
 
         self._add_tag_btn = QPushButton()
         self._add_tag_btn.setStyleSheet("background:#4CAF50; color:white; font-weight:bold; padding:4px 10px;")
+        self._add_tag_btn.setIcon(QIcon.fromTheme("list-add"))
         self._add_tag_btn.clicked.connect(self.add_tag_to_selected)
 
         self._rem_tag_btn = QPushButton()
         self._rem_tag_btn.setStyleSheet("background:#f44336; color:white; font-weight:bold; padding:4px 10px;")
+        self._rem_tag_btn.setIcon(QIcon.fromTheme("list-remove"))
         self._rem_tag_btn.clicked.connect(self.remove_tag_from_selected)
 
         bottom_layout.addWidget(self._add_tag_btn)
@@ -395,11 +417,6 @@ class MainWindow(QMainWindow):
         self._tag_dock = tag_dock
 
         self._selected_images: set = set()
-
-    def setup_shortcuts(self):
-        QShortcut(QKeySequence("Ctrl+A"), self).activated.connect(self.select_all_images)
-        QShortcut(QKeySequence("Ctrl+I"), self).activated.connect(self.invert_selection)
-        QShortcut(QKeySequence("Ctrl+D"), self).activated.connect(self.deselect_all_images)
 
     # ──────────────────────────────────────────────
     #  Open Recent operations
@@ -628,7 +645,7 @@ class MainWindow(QMainWindow):
     def deselect_all_images(self):
         self.image_grid.deselect_all()
 
-    def invert_selection(self):
+    def invert_image_selection(self):
         self.image_grid.invert_selection()
 
     # ──────────────────────────────────────────────

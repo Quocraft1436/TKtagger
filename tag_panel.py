@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QSizePolicy, QComboBox,
 )
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QIcon
 from i18n import tr
 
 class TagPanel(QWidget):
@@ -34,14 +35,29 @@ class TagPanel(QWidget):
 
         # Search row
         search_row = QHBoxLayout()
-        self._search_lbl = QLabel()
-        self._search_lbl.setFixedWidth(40)
         self.search_edit = QLineEdit()
+        self.search_edit.addAction(QIcon.fromTheme("edit-find"), QLineEdit.ActionPosition.LeadingPosition)
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.textChanged.connect(self._filter_display)
-        search_row.addWidget(self._search_lbl)
         search_row.addWidget(self.search_edit)
         layout.addLayout(search_row)
+
+        # Action buttons
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(4)
+        self._deselect_btn = QPushButton()
+        self._deselect_btn.setIcon(QIcon.fromTheme("edit-select-none"))
+        self._deselect_btn.clicked.connect(self.deselect_all_filters)
+        self._delete_btn = QPushButton()
+        self._delete_btn.setIcon(QIcon.fromTheme("list-remove"))
+        self._delete_btn.clicked.connect(self.delete_tags_requested)
+        self._replace_btn = QPushButton()
+        self._replace_btn.setIcon(QIcon.fromTheme("document-edit"))
+        self._replace_btn.clicked.connect(self.replace_tags_requested)
+        btn_row.addWidget(self._deselect_btn)
+        btn_row.addWidget(self._delete_btn)
+        btn_row.addWidget(self._replace_btn)
+        layout.addLayout(btn_row)
 
         # Group filter row (ẩn khi chưa load dict)
         self._group_filter_row = QWidget()
@@ -58,23 +74,6 @@ class TagPanel(QWidget):
         layout.addWidget(self._group_filter_row)
         self._group_filter_row.setVisible(False)
 
-        # Action buttons
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(4)
-        self._deselect_btn = QPushButton()
-        self._deselect_btn.setStyleSheet("background:#9C27B0; color:white; font-weight:bold; padding:4px;")
-        self._deselect_btn.clicked.connect(self.deselect_all_filters)
-        self._delete_btn = QPushButton()
-        self._delete_btn.setStyleSheet("background:#f44336; color:white; font-weight:bold; padding:4px;")
-        self._delete_btn.clicked.connect(self.delete_tags_requested)
-        self._replace_btn = QPushButton()
-        self._replace_btn.setStyleSheet("background:#FF9800; color:white; font-weight:bold; padding:4px;")
-        self._replace_btn.clicked.connect(self.replace_tags_requested)
-        btn_row.addWidget(self._deselect_btn)
-        btn_row.addWidget(self._delete_btn)
-        btn_row.addWidget(self._replace_btn)
-        layout.addLayout(btn_row)
-
         # Scroll area
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -90,7 +89,6 @@ class TagPanel(QWidget):
 
     # ─── i18n ────────────────────────────────────────────────────────────────
     def retranslate_ui(self):
-        self._search_lbl.setText(tr("search_label") + ":")
         self.search_edit.setPlaceholderText(tr("search_placeholder"))
 
         self._group_filter_lbl.setText(tr("group_label") + ":")
