@@ -320,7 +320,7 @@ class MainWindow(QMainWindow):
 
         # Column controls
         self.col_spin = QSpinBox()
-        self.col_spin.setRange(1, 8)  # Giới hạn từ 1 đến 8
+        self.col_spin.setRange(1, 8)
         self.col_spin.setFixedWidth(50)
         self.col_spin.valueChanged.connect(self._set_columns)
 
@@ -344,6 +344,7 @@ class MainWindow(QMainWindow):
         self.image_grid.tag_insert_requested.connect(self._insert_tag_to_global)
         self.image_grid.tag_remove_requested.connect(self._on_individual_tag_remove)
         center_layout.addWidget(self.image_grid, stretch=1)
+        self.col_spin.setValue(self.image_grid._cols)
 
         # Bottom global tag bar
         bottom_bar = QWidget()

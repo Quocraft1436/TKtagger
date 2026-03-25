@@ -16,7 +16,7 @@ def _load_language(lang: str) -> dict:
     if lang in _LANG_CACHE:
         return _LANG_CACHE[lang]
     
-    i18n_dir = os.path.join(os.path.dirname(__file__), "i18n")
+    i18n_dir = os.path.join(os.path.dirname(__file__), "lang")
     lang_file = os.path.join(i18n_dir, f"{lang}.json")
     
     if not os.path.exists(lang_file):
