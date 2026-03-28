@@ -1,7 +1,6 @@
 """
-history_manager.py - Quản lý lịch sử thao tác (Undo/Redo)
+history_manager.py - History Operation Manager for undo/redo functionality in TKtagger.
 """
-import copy
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
@@ -74,14 +73,14 @@ class HistoryManager:
 
     def can_redo(self) -> bool:
         return len(self._redo_stack) > 0
-
+    
     def clear(self):
         self._undo_stack.clear()
         self._redo_stack.clear()
         self._notify()
 
     def get_undo_list(self) -> List[str]:
-        return [e.action for e in reversed(self._undo_stack)]
+        return [e.action for e in self._undo_stack]
 
     def get_redo_list(self) -> List[str]:
         return [e.action for e in reversed(self._redo_stack)]

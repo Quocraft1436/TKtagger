@@ -18,14 +18,15 @@ from history_window import HistoryWindow
 from file_ops import load_folder_images, save_all_images
 from image_grid import ImageGrid
 from tag_panel import TagPanel
-from dialogs import SortTagsDialog, ReplaceTagsDialog, AboutDialog
+from dialogs import ReplaceTagsDialog, AboutDialog
 from waifu_tagger_window import WaifuTaggerWindow
 from calc_dataset import CalcDatasetDialog
 from i18n import tr, set_language, get_language
 from dict_tags import DictTagsWidget, VirtualTagEngine
-from sort_tags import run_sort_tags
+from resort_tags_simple import run_resort_tags_simple
 from remove_duplicate_tags import run_remove_duplicates
 from resort_tags_by_groups import ResortTagsWidget
+from settings_manager import settings
 
 
 class MainWindow(QMainWindow):
@@ -34,9 +35,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, initial_path=None):
         super().__init__()
-        self.lang = "en"
-        set_language(self.lang)
-
+        
         self.root_folder = None
         self.current_folder = None
         self.images: list = []
@@ -68,8 +67,8 @@ class MainWindow(QMainWindow):
     #  Language switcher
     # ──────────────────────────────────────────────
     def switch_language(self, lang: str):
+        settings.language = lang  # Save to settings.ini
         set_language(lang)
-        self.lang = lang
         self.retranslate_ui()
         # Also retranslate history window if already open
         if self.history_win and self.history_win.isVisible():
@@ -85,14 +84,14 @@ class MainWindow(QMainWindow):
         self._file_menu.setTitle(tr("menu_file"))
         self._act_open.setText(tr("menu_open_folder"))
         self.recent_menu.setTitle(tr("menu_open_recent"))
-        self._act_save.setText(tr("menu_save"))
+        self._act_save.setText(tr("ldl_save"))
         self._act_quit.setText(tr("menu_quit"))
         self._edit_menu.setTitle(tr("menu_edit"))
-        self.act_undo.setText(tr("menu_undo"))
-        self.act_redo.setText(tr("menu_redo"))
-        self.act_select_all.setText(tr("menu_select_all"))
-        self.act_deselect_all.setText(tr("menu_deselect_all"))
-        self.act_invert_selection.setText(tr("menu_invert_selection"))
+        self.act_undo.setText(tr("ldl_undo"))
+        self.act_redo.setText(tr("ldl_redo"))
+        self.act_select_all.setText(tr("ldl_select_all"))
+        self.act_deselect_all.setText(tr("ldl_deselect_all"))
+        self.act_invert_selection.setText(tr("ldl_invert_selection"))
         self._act_history_action.setText(tr("menu_history"))
         self.tool_menu.setTitle(tr("menu_tool"))
         self._act_rm_dup.setText(tr("menu_remove_dup"))
@@ -117,10 +116,10 @@ class MainWindow(QMainWindow):
         self._tag_dock.setWindowTitle("🔍 " + tr("tag_panel_title"))
 
         # Top toolbar
-        self._sel_all_btn.setText(tr("select_all_btn"))
-        self._inv_sel_btn.setText(tr("invert_sel_btn"))
-        self._desel_btn.setText(tr("deselect_btn"))
-        self._save_btn.setText(tr("save_btn"))
+        self._sel_all_btn.setText(tr("ldl_select_all"))
+        self._inv_sel_btn.setText(tr("ldl_invert_selection"))
+        self._desel_btn.setText(tr("ldl_deselect_all"))
+        self._save_btn.setText(tr("ldl_save"))
         self._hist_btn.setText(tr("history_btn"))
 
         # Column label
@@ -174,7 +173,6 @@ class MainWindow(QMainWindow):
         self._file_menu.addAction(self._act_quit)
 
         # Edit
-            #todo add select all, deselect all, invert selection actions here with shortcuts, so they work even when focus is on image grid
         self._edit_menu = menubar.addMenu("")
         self.act_undo = QAction("", self)
         self.act_undo.setShortcut(QKeySequence.Undo)
@@ -258,10 +256,7 @@ class MainWindow(QMainWindow):
 
         # Language menu
         self._lang_menu = menubar.addMenu("Language")
-        languages = [
-            ("en", "English"),
-            ("vi", "Tiếng Việt"),
-        ]
+        languages = settings.get_supported_languages()
 
         for code, label in languages:
             act = QAction(label, self)
@@ -609,14 +604,14 @@ class MainWindow(QMainWindow):
         self.act_redo.setEnabled(self.history.can_redo())
         if self.history.can_undo():
             top = self.history.get_undo_list()
-            self.act_undo.setText(tr("undo_text_with_action", action=top[0]) if top else tr("menu_undo"))
+            self.act_undo.setText(tr("undo_text_with_action", action=top[0]) if top else tr("ldl_undo"))
         else:
-            self.act_undo.setText(tr("menu_undo"))
+            self.act_undo.setText(tr("ldl_undo"))
         if self.history.can_redo():
             top = self.history.get_redo_list()
-            self.act_redo.setText(tr("redo_text_with_action", action=top[0]) if top else tr("menu_redo"))
+            self.act_redo.setText(tr("redo_text_with_action", action=top[0]) if top else tr("ldl_redo"))
         else:
-            self.act_redo.setText(tr("menu_redo"))
+            self.act_redo.setText(tr("ldl_redo"))
 
     def _refresh_after_tag_change(self):
         self._load_all_folder_tags()
@@ -766,24 +761,16 @@ class MainWindow(QMainWindow):
     #  Tool operations
     # ──────────────────────────────────────────────
     def remove_duplicate_tags(self):
-        run_remove_duplicates(self)
+        run_remove_duplicates(self, root_folder=self.root_folder)
 
     def sort_tags(self):
-        run_sort_tags(self)
+        run_resort_tags_simple(self, root_folder=self.root_folder)
 
     def open_delete_tag_window(self):
         selected = self.tag_panel.get_selected_filter_tags()
         if not selected:
             QMessageBox.warning(self, tr("warn_select_tag_delete"),
                                 tr("warn_select_tag_delete_msg"))
-            return
-
-        tags_str = "\n- " + "\n- ".join(selected)
-        if QMessageBox.question(
-            self, tr("delete_tags_title"),
-            tr("delete_tags_msg", tags=tags_str),
-            QMessageBox.Yes | QMessageBox.No
-        ) != QMessageBox.Yes:
             return
 
         before = self._snapshot()
@@ -802,7 +789,7 @@ class MainWindow(QMainWindow):
         self._push_history(tr("history_delete_tags", tags=selected, count=count), before)
         self._reload_tags_panel()
         QMessageBox.information(self, tr("delete_done"),
-                                tr("delete_done_msg", tag_count=len(selected), img_count=count))
+                                tr("delete_done_msg", tag=", ".join(selected), tag_count=len(selected), img_count=count))
 
     def open_replace_tag_window(self):
         selected = self.tag_panel.get_selected_filter_tags()

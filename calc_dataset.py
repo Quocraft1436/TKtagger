@@ -93,12 +93,10 @@ class CalcDatasetDialog(QDialog):
         top.addWidget(self._folder_edit, stretch=1)
 
         self._browse_btn = QPushButton()
-        self._browse_btn.setFixedWidth(75)
         self._browse_btn.clicked.connect(self._browse_folder)
         top.addWidget(self._browse_btn)
 
         self._scan_btn = QPushButton()
-        self._scan_btn.setFixedWidth(65)
         self._scan_btn.setStyleSheet("background:#2196F3; color:white; font-weight:bold;")
         self._scan_btn.clicked.connect(self._scan)
         top.addWidget(self._scan_btn)
@@ -113,10 +111,8 @@ class CalcDatasetDialog(QDialog):
         fbar.addWidget(self._status_lbl)
         fbar.addStretch()
         self._sel_all_btn = QPushButton()
-        self._sel_all_btn.setFixedWidth(48)
         self._sel_all_btn.clicked.connect(self._select_all_folders)
         self._desel_all_btn = QPushButton()
-        self._desel_all_btn.setFixedWidth(50)
         self._desel_all_btn.clicked.connect(self._deselect_all_folders)
         fbar.addWidget(self._sel_all_btn)
         fbar.addWidget(self._desel_all_btn)
@@ -222,17 +218,17 @@ class CalcDatasetDialog(QDialog):
         bot.addWidget(self._rename_info_lbl)
         bot.addStretch()
 
-        self._apply_btn = QPushButton()
-        self._apply_btn.setStyleSheet(
-            "background:#4CAF50; color:white; font-weight:bold; padding:5px 18px;")
-        self._apply_btn.setEnabled(False)
-        self._apply_btn.clicked.connect(self._apply_rename)
-        bot.addWidget(self._apply_btn)
-
         self._cancel_btn = QPushButton()
         self._cancel_btn.setFixedWidth(80)
         self._cancel_btn.clicked.connect(self.reject)
         bot.addWidget(self._cancel_btn)
+
+        self._apply_btn = QPushButton()
+        self._apply_btn.setStyleSheet(
+            "background:#4CAF50; color:white; font-weight:bold;")
+        self._apply_btn.setEnabled(False)
+        self._apply_btn.clicked.connect(self._apply_rename)
+        bot.addWidget(self._apply_btn)
 
         root.addLayout(bot)
 
@@ -249,8 +245,8 @@ class CalcDatasetDialog(QDialog):
 
         # Folder table
         self._status_lbl.setText(tr("calc_no_folder_scanned"))
-        self._sel_all_btn.setText(tr("calc_sel_all_btn"))
-        self._desel_all_btn.setText(tr("calc_desel_all_btn"))
+        self._sel_all_btn.setText(tr("ldl_select_all"))
+        self._desel_all_btn.setText(tr("ldl_deselect_all"))
         self._folder_table.setHorizontalHeaderLabels([
             "",
             tr("calc_col_folder"),

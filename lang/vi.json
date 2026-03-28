@@ -304,5 +304,8 @@
   "dict_confirm_title": "Xác nhận",
   "dict_confirm_remove_group": "Xóa nhóm {group}?",
   "dict_save_ok_title": "Đã lưu",
-  "dict_save_ok_msg": "Đã lưu: {path}"
+  "dict_save_ok_msg": "Đã lưu: {path}",
+  "menu_settings": "Cài đặt",
+  "lang_en": "English",
+  "lang_vi": "Tiếng Việt"
 }

@@ -1,18 +1,16 @@
 from __future__ import annotations
 import json, re
 from itertools import product
-from pathlib import Path
-from typing import Any
 
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
     QLineEdit, QComboBox, QTreeWidget, QTreeWidgetItem,
     QFrame, QSplitter, QFileDialog, QMessageBox,
-    QGroupBox, QFormLayout, QCheckBox, QScrollArea,
-    QSizePolicy, QToolButton, QApplication,
+    QGroupBox, QFormLayout, QCheckBox
 )
-from PySide6.QtCore import Qt, Signal, QSize
-from PySide6.QtGui import QFont, QColor
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QIcon
 
 from i18n import tr
 
@@ -138,6 +136,7 @@ class DictTagsWidget(QWidget):
         gl.addWidget(self._hint_hidden)
 
         self.btn_add_group = QPushButton()
+        self.btn_add_group.setIcon(QIcon.fromTheme("list-add"))
         self.btn_add_group.clicked.connect(self._add_group)
         gl.addWidget(self.btn_add_group)
         left_v.addWidget(self._gb_grp)
@@ -163,6 +162,7 @@ class DictTagsWidget(QWidget):
         tl.addWidget(self._hint_virtual)
 
         self.btn_add_tag = QPushButton()
+        self.btn_add_tag.setIcon(QIcon.fromTheme("list-add"))
         self.btn_add_tag.clicked.connect(self._add_tag)
         tl.addWidget(self.btn_add_tag)
         left_v.addWidget(self._gb_tag)
@@ -173,6 +173,7 @@ class DictTagsWidget(QWidget):
         self.lbl_selected = QLabel()
         rl.addWidget(self.lbl_selected)
         self.btn_remove = QPushButton()
+        self.btn_remove.setIcon(QIcon.fromTheme("list-remove"))
         self.btn_remove.clicked.connect(self._remove_selected)
         rl.addWidget(self.btn_remove)
         left_v.addWidget(self._gb_rm)
@@ -184,6 +185,8 @@ class DictTagsWidget(QWidget):
 
         sh = QHBoxLayout()
         self.inp_search = QLineEdit()
+        self.inp_search.addAction(QIcon.fromTheme("edit-find"), QLineEdit.ActionPosition.LeadingPosition)
+        self.inp_search.setClearButtonEnabled(True)
         self.inp_search.textChanged.connect(self._filter_tree)
         sh.addWidget(self.inp_search)
 
@@ -200,9 +203,15 @@ class DictTagsWidget(QWidget):
         self.btn_expand   = QPushButton()
         self.btn_collapse = QPushButton()
         self.btn_save     = QPushButton()
+        
         self.btn_expand.clicked.connect(self.tree.expandAll)
         self.btn_collapse.clicked.connect(self.tree.collapseAll)
         self.btn_save.clicked.connect(self._save_json)
+
+        self.btn_expand.setIcon(QIcon.fromTheme("view-expand"))
+        self.btn_collapse.setIcon(QIcon.fromTheme("view-collapse"))
+        self.btn_save.setIcon(QIcon.fromTheme("document-save"))
+        
         brow.addWidget(self.btn_expand)
         brow.addWidget(self.btn_collapse)
         brow.addStretch()
@@ -216,9 +225,9 @@ class DictTagsWidget(QWidget):
     # ── i18n ──────────────────────────────────────────────────────────────────
     def retranslate_ui(self):
         # GroupBox titles
-        self._gb_grp.setTitle(tr("dict_gb_add_group"))
-        self._gb_tag.setTitle(tr("dict_gb_add_tag"))
-        self._gb_rm.setTitle(tr("dict_gb_remove"))
+        self._gb_grp.setTitle(tr("ldl_add_group"))
+        self._gb_tag.setTitle(tr("ldl_add_tag"))
+        self._gb_rm.setTitle(tr("ldl_remove_tag"))
 
         # Form labels
         self._lbl_group_name.setText(tr("dict_lbl_name"))
@@ -239,12 +248,12 @@ class DictTagsWidget(QWidget):
         self._hint_virtual.setText(tr("dict_hint_virtual"))
 
         # Buttons
-        self.btn_add_group.setText(tr("dict_btn_add_group"))
-        self.btn_add_tag.setText(tr("dict_btn_add_tag"))
-        self.btn_remove.setText(tr("dict_btn_remove"))
+        self.btn_add_group.setText(tr("ldl_add_group"))
+        self.btn_add_tag.setText(tr("ldl_add_tag"))
+        self.btn_remove.setText(tr("ldl_remove_tag"))
         self.btn_expand.setText(tr("dict_btn_expand"))
         self.btn_collapse.setText(tr("dict_btn_collapse"))
-        self.btn_save.setText(tr("dict_btn_save_json"))
+        self.btn_save.setText(tr("ldl_save"))
 
         # Tree headers
         self.tree.setHeaderLabels([
