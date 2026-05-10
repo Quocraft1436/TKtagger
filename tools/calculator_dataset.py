@@ -1,5 +1,5 @@
 """
-calc_dataset.py - Máy tính số vòng lặp dataset theo tỉ lệ (Dataset Repeat Calculator)
+calculator_dataset.py - Calculator for dataset balancing and renaming based on tagged image counts.
 """
 import os
 import re
@@ -62,8 +62,9 @@ def _scan_folders(root: str) -> list:
 # ─── dialog ───────────────────────────────────────────────────────────────────
 
 class CalcDatasetDialog(QDialog):
-    def __init__(self, root_folder: str = None, parent=None):
+    def __init__(self, root_folder: str = None, standalone_app = True, parent=None):
         super().__init__(parent)
+        self.is_standalone_app = standalone_app
         self.setMinimumSize(860, 640)
         self.resize(980, 720)
         self.root_folder = root_folder
@@ -224,8 +225,7 @@ class CalcDatasetDialog(QDialog):
         bot.addWidget(self._cancel_btn)
 
         self._apply_btn = QPushButton()
-        self._apply_btn.setStyleSheet(
-            "background:#4CAF50; color:white; font-weight:bold;")
+        self._apply_btn.setStyleSheet("background:#4CAF50; color:white; font-weight:bold;")
         self._apply_btn.setEnabled(False)
         self._apply_btn.clicked.connect(self._apply_rename)
         bot.addWidget(self._apply_btn)

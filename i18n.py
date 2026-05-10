@@ -9,6 +9,7 @@ import os
 _LANG = "en"          # default language
 _STRINGS: dict = {}   # cache for loaded language strings
 _LANG_CACHE: dict = {} # cache for all loaded languages
+_DEBUG_LANG = False    # flag to show actual keys instead of translations
 
 
 def _load_language(lang: str) -> dict:
@@ -20,7 +21,8 @@ def _load_language(lang: str) -> dict:
     lang_file = os.path.join(i18n_dir, f"{lang}.json")
     
     if not os.path.exists(lang_file):
-        raise ValueError(f"Language file not found: {lang_file}")
+        # Fallback to empty dict if file not found to prevent crashing
+        return {}
     
     with open(lang_file, encoding="utf-8") as f:
         strings = json.load(f)
@@ -36,12 +38,17 @@ def _load():
 
 
 def set_language(lang: str):
-    """Switch active language. Must have a corresponding file in i18n/ directory (e.g. 'en', 'vi')."""
+    """Switch active language."""
     global _LANG, _STRINGS
-    # Validate the language exists by attempting to load it
     _load_language(lang)
     _LANG = lang
-    _STRINGS = _LANG_CACHE[lang]
+    _STRINGS = _LANG_CACHE.get(lang, {})
+
+
+def set_debug(enabled: bool):
+    """Enable or disable debug mode to show raw keys."""
+    global _DEBUG_LANG
+    _DEBUG_LANG = enabled
 
 
 def get_language() -> str:
@@ -50,8 +57,15 @@ def get_language() -> str:
 
 
 def tr(key: str, **kwargs) -> str:
-    """Return the translated string for *key*, formatting any {placeholder} values.
-    Falls back to English if the key is not found in the current language."""
+    """
+    Return the translated string for *key*.
+    If _DEBUG_LANG is True, returns the key itself.
+    Falls back to English if the key is not found in the current language.
+    """
+    # If debug mode is enabled, return the key immediately.
+    if _DEBUG_LANG:
+        return key
+
     if not _STRINGS:
         _load()
     
@@ -59,6 +73,8 @@ def tr(key: str, **kwargs) -> str:
     text = _STRINGS.get(key)
     if text is None and _LANG != "en":
         text = _load_language("en").get(key)
+    
+    # Final fallback to key if not found anywhere
     if text is None:
         text = key
     
@@ -66,10 +82,12 @@ def tr(key: str, **kwargs) -> str:
     if kwargs:
         try:
             text = text.format(**kwargs)
-        except KeyError:
+        except (KeyError, IndexError, ValueError):
+            # Return unformatted text if formatting fails
             pass
+            
     return text
 
 
-# Eagerly load English on import
+# Eagerly load default language on import
 _load()

@@ -1,5 +1,5 @@
 """
-file_ops.py - Thao tác đọc/ghi file tags
+file_ops.py - Operations for loading/saving tags and images, and building folder tree.
 """
 import os
 

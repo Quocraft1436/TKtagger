@@ -1,22 +1,114 @@
 {
   "order": [
     "Character",
-    "Color2",
-    "Color"
+    "Body & Face",
+    "Hair",
+    "Outfit",
+    "Accessories",
+    "Pose & Framing",
+    "Background",
+    "Color",
+    "Length"
   ],
   "Character": {
+    "emoji": "👤",
     "Hidden": false,
     "Tags": {
-      "1boy": {
-        "description": "An image depicting one male character.\n\nOnly living characters who are visibly present count towards this tag. Inanimate objects, such as dolls, figures, paintings, posters, etc, or offscreen characters who aren't visibly present, don't count towards this tag.\n\nFemale characters may also be present in addition to the male character. See solo for images containing a single character."
-      },
-      "1girl": {}
-    },
-    "emoji": "👤"
+      "1girl": {},
+      "solo": {},
+      "h1me": {}
+    }
+  },
+  "Body & Face": {
+    "emoji": "✨",
+    "Hidden": false,
+    "Tags": {
+      "${Color}_eyes": {},
+      "blush": {},
+      "closed mouth": {},
+      "looking at viewer": {}
+    }
+  },
+  "Hair": {
+    "emoji": "💇",
+    "Hidden": false,
+    "Tags": {
+      "${Color}_hair": {},
+      "twintails": {},
+      "${Length}_twintails": {},
+      "hair between eyes": {}
+    }
+  },
+  "Outfit": {
+    "emoji": "👗",
+    "Hidden": false,
+    "Tags": {
+      "outfit_casual": {},
+      "${Color}_dress": {},
+      "${Length}_twintails": {},
+      "off shoulder": {},
+      "${Color} straps shoulder": {},
+      "frilled skirt": {},
+      "layered skirt": {},
+      "${Color}_skirt": {},
+      "${Color}_thighhighs": {},
+      "scallop-top": {},
+      "scallop-top thigh-high socks": {}
+    }
+  },
+  "Accessories": {
+    "emoji": "🎀",
+    "Hidden": false,
+    "Tags": {
+      "${Color}_bow": {},
+      "bow on twintail": {},
+      "ribbon": {},
+      "simple crown king": {},
+      "tilted headwear": {},
+      "choker": {},
+      "armlet": {}
+    }
+  },
+  "Pose & Framing": {
+    "emoji": "📸",
+    "Hidden": false,
+    "Tags": {
+      "standing": {},
+      "hand on own chest": {},
+      "clenched hand": {},
+      "knee shot": {}
+    }
+  },
+  "Background": {
+    "emoji": "🖼️",
+    "Hidden": false,
+    "Tags": {
+      "${Color} background": {},
+      "simple background": {}
+    }
   },
   "Color": {
-    "emoji": null,
+    "emoji": "🎨",
     "Hidden": true,
-    "Tags": {}
+    "Tags": {
+      "red": {},
+      "blue": {},
+      "green": {},
+      "black": {},
+      "white": {},
+      "blonde": {},
+      "pink": {},
+      "purple": {},
+      "yellow": {}
+    }
+  },
+  "Length": {
+    "emoji": "📏",
+    "Hidden": true,
+    "Tags": {
+      "long": {},
+      "very long": {},
+      "very short": {}
+    }
   }
 }

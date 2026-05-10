@@ -94,24 +94,26 @@ class ImageCard(QFrame):
 
     def _load_image(self, label: QLabel):
         try:
-            # Load ảnh trực tiếp bằng QPixmap (Không cần PIL)
-            pixmap = QPixmap(self.img_data['path'])
-            
-            if pixmap.isNull():
-                raise ValueError("Không thể tải ảnh")
+            path = self.img_data.get('path', None)
+            if not path:
+                raise ValueError("No image path provided")
 
-            # Scale ảnh theo kích thước mong muốn
+            pixmap = QPixmap(path)
+            if pixmap.isNull():
+                raise ValueError(f"Cannot load image from {path}")
+
+            # Scale the image while keeping aspect ratio
             pixmap = pixmap.scaled(
                 self.img_width,
-                self.img_width,
-                Qt.AspectRatioMode.KeepAspectRatio, # Dùng enum đầy đủ để tránh lỗi bản PyQt6
+                self.img_width,  # you can change to self.img_height if needed
+                Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
-            
+
             label.setPixmap(pixmap)
-            
+
         except Exception as e:
-            print(f"Error: {e}") # Debug lỗi nếu cần
+            print(f"Error: {e}")
             label.setText(f"❌ Error: {e}")
             label.setStyleSheet("color: red;")
 

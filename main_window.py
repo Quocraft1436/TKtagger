@@ -3,6 +3,7 @@ main_window.py - Cửa sổ chính của ứng dụng TKtagger (PySide6)
 """
 import os
 import json
+from pathlib import Path
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
@@ -18,16 +19,18 @@ from history_window import HistoryWindow
 from file_ops import load_folder_images, save_all_images
 from image_grid import ImageGrid
 from tag_panel import TagPanel
-from dialogs import ReplaceTagsDialog, AboutDialog
-from waifu_tagger_window import WaifuTaggerWindow
-from calc_dataset import CalcDatasetDialog
-from i18n import tr, set_language, get_language
-from dict_tags import DictTagsWidget, VirtualTagEngine
-from resort_tags_simple import run_resort_tags_simple
-from remove_duplicate_tags import run_remove_duplicates
-from resort_tags_by_groups import ResortTagsWidget
-from settings_manager import settings
+from dialogs import AboutDialog
 
+from tools.replace_tags import run_replace_tags
+from tools.waifu_tagger_window import WaifuTaggerWindow
+from tools.calculator_dataset import CalcDatasetDialog
+from tools.dict_tags import DictTagsWidget, VirtualTagEngine
+from tools.remove_duplicate_tags import run_remove_duplicates
+
+from tools.resort_tag_window_operation import run_operation_sort_tag
+
+from settings_manager import settings
+from i18n import tr, set_language, get_language
 
 class MainWindow(QMainWindow):
 
@@ -41,8 +44,9 @@ class MainWindow(QMainWindow):
         self.images: list = []
         self.all_folder_tags: list = []
         self.folder_tag_counts: dict = {}
+        self._folder_cache: dict[str, list] = {}
 
-        self.history = HistoryManager(max_history=100)
+        self.history = HistoryManager(max_history=256)
         self.history_win: HistoryWindow = None
 
         # Dict Manager state
@@ -56,8 +60,9 @@ class MainWindow(QMainWindow):
         self.setup_ui()
         self.retranslate_ui()           # first paint with correct language
 
+        self.check_auto_load_dict()
         if initial_path and os.path.exists(initial_path):
-            self._auto_load_path(initial_path)
+            self.select_root_folder(initial_path)
 
         self.tagging_completed.connect(self._on_tagging_finished)
 
@@ -93,10 +98,10 @@ class MainWindow(QMainWindow):
         self.act_deselect_all.setText(tr("ldl_deselect_all"))
         self.act_invert_selection.setText(tr("ldl_invert_selection"))
         self._act_history_action.setText(tr("menu_history"))
+        self.act_nuke_selection.setText(tr("menu_nuke_selection"))
         self.tool_menu.setTitle(tr("menu_tool"))
         self._act_rm_dup.setText(tr("menu_remove_dup"))
         self._act_sort.setText(tr("menu_sort_tags"))
-        self._act_resort.setText(tr("menu_resort_tags"))
         self._act_waifu.setText(tr("menu_waifu_tagger"))
         self._act_calc_dataset.setText(tr("menu_calc_dataset"))
         self._help_menu.setTitle(tr("menu_help"))
@@ -105,8 +110,7 @@ class MainWindow(QMainWindow):
         self._dict_menu.setTitle(tr("menu_dict"))
         self._act_dict_new.setText(tr("menu_dict_new"))
         self._act_dict_load.setText(tr("menu_dict_load"))
-        self._act_dict_save.setText(tr("menu_dict_save"))
-        self._act_dict_reload.setText(tr("menu_dict_reload"))
+        self._act_dict_auto_load.setText(tr("menu_dict_setpath"))
         self._act_dict_open_mgr.setText(tr("menu_dict_manager"))
 
         # Left panel
@@ -199,10 +203,14 @@ class MainWindow(QMainWindow):
         self.act_invert_selection.setShortcut(QKeySequence("Ctrl+I"))
         self.act_invert_selection.triggered.connect(self.invert_image_selection)
 
+        self.act_nuke_selection = QAction("", self)
+        self.act_nuke_selection.triggered.connect(self.nuke_tags_from_selected)
+
         self._edit_menu.addAction(self.act_undo)
         self._edit_menu.addAction(self.act_redo)
         self._edit_menu.addSeparator()
         self._edit_menu.addAction(self._act_history_action)
+        self._edit_menu.addAction(self.act_nuke_selection)
         self._edit_menu.addSeparator()
         self._edit_menu.addAction(self.act_select_all)
         self._edit_menu.addAction(self.act_deselect_all)
@@ -210,7 +218,7 @@ class MainWindow(QMainWindow):
 
         # Tool
         self.tool_menu = menubar.addMenu("")
-        self.tool_menu.setEnabled(False)
+        # self.tool_menu.setEnabled(False)
 
         self._act_rm_dup = QAction("", self)
         self._act_rm_dup.triggered.connect(self.remove_duplicate_tags)
@@ -218,24 +226,18 @@ class MainWindow(QMainWindow):
         self._act_sort = QAction("", self)
         self._act_sort.triggered.connect(self.sort_tags)
 
-        self._act_resort = QAction("", self)
-        self._act_resort.triggered.connect(self.open_resort_tags)
-
         self._act_waifu = QAction("", self)
         self._act_waifu.triggered.connect(self.open_waifu_tagger)
 
         self._act_calc_dataset = QAction("", self)
         self._act_calc_dataset.triggered.connect(self.open_calc_dataset)
+        self._act_calc_dataset.setShortcuts(["Ctrl+Shift+D", "F9"])
 
         self._act_rm_dup.setShortcuts(["Ctrl+E", "F5"])
         self._act_sort.setShortcuts(["Ctrl+R", "F6"])
-        self._act_resort.setShortcuts(["Ctrl+Shift+R", "F7"])
-        self._act_waifu.setShortcuts(["Ctrl+T", "F8"])
-        self._act_calc_dataset.setShortcuts(["Ctrl+Shift+D", "F9"])
-        
+        self._act_waifu.setShortcuts(["Ctrl+T", "F8"])        
         self.tool_menu.addAction(self._act_rm_dup)
         self.tool_menu.addAction(self._act_sort)
-        self.tool_menu.addAction(self._act_resort)
         self.tool_menu.addSeparator()
         self.tool_menu.addAction(self._act_waifu)
         self.tool_menu.addAction(self._act_calc_dataset)
@@ -244,13 +246,14 @@ class MainWindow(QMainWindow):
         self._dict_menu = menubar.addMenu("")
         self._act_dict_new     = QAction("", self); self._act_dict_new.triggered.connect(self.dict_new)
         self._act_dict_load    = QAction("", self); self._act_dict_load.triggered.connect(self.dict_load)
-        self._act_dict_save    = QAction("", self); self._act_dict_save.triggered.connect(self.dict_save)
-        self._act_dict_reload  = QAction("", self); self._act_dict_reload.triggered.connect(self.dict_reload)
+        self._act_dict_auto_load = QAction("", self); self._act_dict_auto_load.triggered.connect(self.set_auto_load_dict)
         self._act_dict_open_mgr= QAction("", self); self._act_dict_open_mgr.triggered.connect(self.dict_open_manager)
+
+        self._act_dict_open_mgr.setEnabled(False)
+
         self._dict_menu.addAction(self._act_dict_new)
         self._dict_menu.addAction(self._act_dict_load)
-        self._dict_menu.addAction(self._act_dict_save)
-        self._dict_menu.addAction(self._act_dict_reload)
+        self._dict_menu.addAction(self._act_dict_auto_load)
         self._dict_menu.addSeparator()
         self._dict_menu.addAction(self._act_dict_open_mgr)
 
@@ -286,7 +289,6 @@ class MainWindow(QMainWindow):
         # Top toolbar
         top_bar = QWidget()
         top_layout = QHBoxLayout(top_bar)
-        top_layout.setContentsMargins(4, 2, 4, 2)
 
         self._sel_all_btn = QPushButton()
         self._sel_all_btn.setStyleSheet("background:#4CAF50; color:white; font-weight:bold; padding:4px 8px;")
@@ -325,10 +327,10 @@ class MainWindow(QMainWindow):
         top_layout.addWidget(self._sel_all_btn)
         top_layout.addWidget(self._inv_sel_btn)
         top_layout.addWidget(self._desel_btn)
-        top_layout.addWidget(self._save_btn)
         top_layout.addStretch()
         top_layout.addWidget(self._col_lbl)
         top_layout.addWidget(self.col_spin)
+        top_layout.addWidget(self._save_btn)
         top_layout.addWidget(self._hist_btn)
         center_layout.addWidget(top_bar)
 
@@ -346,7 +348,8 @@ class MainWindow(QMainWindow):
         bottom_layout = QHBoxLayout(bottom_bar)
         bottom_layout.setContentsMargins(8, 6, 8, 6)
 
-        self.global_tag_entry = self._global_tag_entry = QLineEdit()
+        self.global_tag_entry = self._global_tag_entry = QLineEdit()        
+
         self.global_tag_entry.addAction(QIcon.fromTheme("tag"), QLineEdit.ActionPosition.LeadingPosition)
         self._global_tag_entry.setClearButtonEnabled(True)
         self._global_tag_entry.setFixedHeight(30)
@@ -442,10 +445,7 @@ class MainWindow(QMainWindow):
         self.recent_menu.addAction(clear_act)
 
     def _load_recent_folder(self, folder):
-        self.root_folder = folder
-        self._populate_tree(folder)
-        self._load_folder(folder)
-        self.save_to_recent(folder)
+        self._set_active_directory(folder)
 
     def save_to_recent(self, folder):
         recent_folders = self.settings.value("recent_list", [])
@@ -471,22 +471,13 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────────────
     #  Folder / File operations
     # ──────────────────────────────────────────────
-    def _auto_load_path(self, path):
-        self.root_folder = path
-        self.current_folder = path
-        self._populate_tree(path)
-        self._load_folder(path)
-        self.save_to_recent(path)
-        self.update_ui_state()
 
-    def select_root_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, tr("dlg_open_folder"))
-        if folder:
-            self.root_folder = folder
-            self.current_folder = folder
-            self._populate_tree(folder)
-            self._load_folder(folder)
-            self.save_to_recent(folder)
+    def select_root_folder(self, path=None):
+        if not path:
+            path = QFileDialog.getExistingDirectory(self, tr("dlg_open_folder"))
+        
+        if path:
+            self._set_active_directory(path)
 
     def _populate_tree(self, root_path: str):
         self.dir_tree.clear()
@@ -513,33 +504,29 @@ class MainWindow(QMainWindow):
             self._load_folder(path)
 
     def _load_folder(self, folder: str):
-        if self.images and self._has_unsaved():
-            resp = QMessageBox.question(
-                self, tr("dlg_save_before_switch"),
-                tr("dlg_save_before_switch_msg"),
-                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel
-            )
-            if resp == QMessageBox.Yes:
-                self.save_all()
-            elif resp == QMessageBox.Cancel:
+        # Lưu state folder hiện tại trước
+        self._save_current_folder_state()
+
+        # Load folder mới
+        if folder in self._folder_cache:
+            self.images = self._folder_cache[folder]
+        else:
+            try:
+                self.images = load_folder_images(folder)
+            except PermissionError:
+                QMessageBox.critical(self, tr("dlg_no_permission"), tr("dlg_no_permission_msg", folder=folder))
                 return
+            self._folder_cache[folder] = self.images
 
-        try:
-            self.images = load_folder_images(folder)
-        except PermissionError:
-            QMessageBox.critical(self, tr("dlg_no_permission"),
-                                 tr("dlg_no_permission_msg", folder=folder))
-            return
-
-        self.current_folder = folder
-        self.history.clear()
+        self.current_folder = folder  # ← update SAU khi đã save state cũ
         self._selected_images.clear()
         self._load_all_folder_tags()
         self.statusBar().showMessage(tr("status_loaded", count=len(self.images), folder=folder))
-        self.update_ui_state()
-        # Sync resort window với folder mới
-        if self._resort_win and self._resort_win.isVisible():
-            self._resort_win.set_folders(self.current_folder, self.root_folder)
+
+    def _save_current_folder_state(self):
+        """Lưu state folder hiện tại vào cache trước khi rời."""
+        if self.current_folder and self.images:
+            self._folder_cache[self.current_folder] = self.images
 
     def _load_all_folder_tags(self):
         counts = {}
@@ -552,21 +539,55 @@ class MainWindow(QMainWindow):
         self.image_grid.set_data(self.images, {})
 
     def _has_unsaved(self) -> bool:
-        return any(img.get('modified') for img in self.images)
+        # Check folder đang xem
+        if any(img.get('modified') for img in self.images):
+            return True
+        # Check các folder đang cached
+        for cached_images in self._folder_cache.values():
+            if any(img.get('modified') for img in cached_images):
+                return True
+        return False
 
-    # ──────────────────────────────────────────────
-    #  Handle Update Function
-    # ──────────────────────────────────────────────
-    def update_ui_state(self):
-        has_data = self.current_folder is not None
-        if hasattr(self, 'tool_menu'):
-            self.tool_menu.setEnabled(has_data)
+    def _set_active_directory(self, folder):
+        """Hàm tập trung duy nhất để thay đổi thư mục làm việc"""
+
+        if not os.path.isdir(folder):
+            raise NotADirectoryError(f"The path does not exist or is not a directory: {folder}")
+
+        if self.images and self._has_unsaved():
+            resp = QMessageBox.question(
+                self, tr("dlg_save_before_switch"), tr("dlg_save_before_switch_msg"),
+                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel
+            )
+            if resp == QMessageBox.Yes:
+                self.save_all()
+            elif resp == QMessageBox.Cancel:
+                return
+        
+        self.history.clear()
+
+        # Clear cache và reset state TRƯỚC
+        self._folder_cache.clear()
+        self.images = []          # ← reset images để _save_current_folder_state không cache rác
+        self.current_folder = None  # ← reset để _load_folder không lưu state cũ
+
+        self.root_folder = folder
+        self._populate_tree(folder)
+        self._load_folder(folder)
+        self.save_to_recent(folder)
 
     # ──────────────────────────────────────────────
     #  Save
     # ──────────────────────────────────────────────
     def save_all(self):
-        count = save_all_images(self.images)
+        # Gom tất cả images từ cache + folder hiện tại
+        all_images = list(self.images)
+        for path, cached in self._folder_cache.items():
+            if path != self.current_folder:
+                all_images.extend(cached)
+
+        count = save_all_images(all_images)
+        # count = save_all_images(self.images)
         if count:
             QMessageBox.information(self, tr("save_success"),
                                     tr("save_success_msg", count=count))
@@ -622,11 +643,17 @@ class MainWindow(QMainWindow):
     #  History window
     # ──────────────────────────────────────────────
     def show_history_window(self):
-        if self.history_win is None or not self.history_win.isVisible():
-            self.history_win = HistoryWindow(self.history, parent=self)
-        self.history_win.show()
-        self.history_win.raise_()
-        self.history_win.activateWindow()
+        if not hasattr(self, 'history_dock') or self.history_dock is None:
+            self.history_dock = HistoryWindow(self.history, parent=self)
+            self.addDockWidget(Qt.RightDockWidgetArea, self.history_dock)
+            self.history_dock.show()
+            return
+
+        if self.history_dock.isVisible():
+            self.history_dock.hide()
+        else:
+            self.history_dock.show()
+            self.history_dock.raise_()
 
     # ──────────────────────────────────────────────
     #  Selection
@@ -688,16 +715,17 @@ class MainWindow(QMainWindow):
         self._push_history(tr("history_add_tag_bulk", tag=tag, count=count), before)
         self.global_tag_entry.clear()
         self._reload_tags_panel()
-        QMessageBox.information(self, tr("add_tag_success"),
-                                tr("add_tag_success_msg", tag=tag, count=count))
+        # QMessageBox.information(self, tr("add_tag_success"), tr("add_tag_success_msg", tag=tag, count=count))
         self.deselect_all_images()
 
     def remove_tag_from_selected(self):
         raw = self.global_tag_entry.text()
         tags_to_remove = list(set(t.strip() for t in raw.split(',') if t.strip()))
+
         if not tags_to_remove:
             QMessageBox.warning(self, tr("warn_no_tag"), tr("warn_no_tag_msg"))
             return
+
         if not self._selected_images:
             QMessageBox.warning(self, tr("warn_no_image"), tr("warn_no_image_msg"))
             return
@@ -715,14 +743,10 @@ class MainWindow(QMainWindow):
                 self.image_grid.refresh_card(idx)
                 affected += 1
 
-        self._push_history(
-            tr("history_remove_tag_bulk", tags=tags_to_remove, count=affected), before
-        )
+        self._push_history(tr("history_remove_tag_bulk", tags=tags_to_remove, count=affected, folder=Path(self.current_folder).name), before)
         self.global_tag_entry.clear()
         self._reload_tags_panel()
-        QMessageBox.information(self, tr("remove_tag_success"),
-                                tr("remove_tag_success_msg",
-                                   tag_count=len(tags_to_remove), img_count=affected))
+        # QMessageBox.information(self, tr("remove_tag_success"), tr("remove_tag_success_msg", tag_count=len(tags_to_remove), img_count=affected))
         self.deselect_all_images()
 
     def _on_individual_tag_remove(self, idx: int, tag: str):
@@ -731,12 +755,71 @@ class MainWindow(QMainWindow):
             self.images[idx]['tags'].remove(tag)
             self.images[idx]['modified'] = True
             self._push_history(
-                tr("history_remove_tag", tag=tag, filename=self.images[idx]['filename']),
+                tr("history_remove_tag", tag=tag, filename=self.images[idx]['filename'], folder=Path(self.current_folder).name),
                 before
             )
             self.image_grid.refresh_card(idx)
             self._reload_tags_panel()
 
+    def nuke_tags_from_selected(self):
+        if not self._selected_images:
+            QMessageBox.warning(self, tr("warn_no_image"), tr("warn_no_image_msg"))
+            return
+
+        # Xác nhận trước khi xóa sạch
+        confirm = QMessageBox.question(
+            self, 
+            tr("ldl_confirm"), 
+            tr("nuke_selected_comfirm", selected=len(self._selected_images)),
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if confirm != QMessageBox.Yes:
+            return
+
+        before = self._snapshot()
+        affected = 0
+        
+        for idx in list(self._selected_images):
+            if self.images[idx]['tags']: # Chỉ xử lý nếu ảnh có tag
+                self.images[idx]['tags'] = []
+                self.images[idx]['modified'] = True
+                self.image_grid.refresh_card(idx)
+                affected += 1
+
+        if affected > 0:
+            lbl = tr("nuke_push_history", affected=affected)
+            self._push_history(lbl, before)
+            self._reload_tags_panel()
+            self.statusBar().showMessage(lbl)
+        
+        self.deselect_all_images()
+
+    def open_delete_tag_window(self):
+        selected = self.tag_panel.get_selected_filter_tags()
+        if not selected:
+            QMessageBox.warning(self, tr("warn_select_tag_delete"), tr("warn_select_tag_delete_msg"))
+            return
+
+        before = self._snapshot()
+        count = 0
+        
+        for idx, img in enumerate(self.images):
+            modified = False
+            for tag in selected:
+                if tag in img['tags']:
+                    img['tags'].remove(tag)
+                    modified = True
+            if modified:
+                img['modified'] = True
+                self.image_grid.refresh_card(idx)
+                count += 1
+
+        self._push_history(tr("history_delete_tags", tags=selected, count=count), before)
+        self._reload_tags_panel()
+        QMessageBox.information(self, tr("delete_done"),
+                                tr("delete_done_msg", tag=", ".join(selected), tag_count=len(selected), img_count=count))
+                                
     def _set_columns(self, n: int):
         self.image_grid.set_columns(n)
 
@@ -761,86 +844,32 @@ class MainWindow(QMainWindow):
     #  Tool operations
     # ──────────────────────────────────────────────
     def remove_duplicate_tags(self):
-        run_remove_duplicates(self, root_folder=self.root_folder)
+        run_remove_duplicates(self)
 
     def sort_tags(self):
-        run_resort_tags_simple(self, root_folder=self.root_folder)
-
-    def open_delete_tag_window(self):
-        selected = self.tag_panel.get_selected_filter_tags()
-        if not selected:
-            QMessageBox.warning(self, tr("warn_select_tag_delete"),
-                                tr("warn_select_tag_delete_msg"))
-            return
-
-        before = self._snapshot()
-        count = 0
-        for idx, img in enumerate(self.images):
-            modified = False
-            for tag in selected:
-                if tag in img['tags']:
-                    img['tags'].remove(tag)
-                    modified = True
-            if modified:
-                img['modified'] = True
-                self.image_grid.refresh_card(idx)
-                count += 1
-
-        self._push_history(tr("history_delete_tags", tags=selected, count=count), before)
-        self._reload_tags_panel()
-        QMessageBox.information(self, tr("delete_done"),
-                                tr("delete_done_msg", tag=", ".join(selected), tag_count=len(selected), img_count=count))
+        run_operation_sort_tag(self)
 
     def open_replace_tag_window(self):
-        selected = self.tag_panel.get_selected_filter_tags()
-        if not selected:
-            QMessageBox.warning(self, tr("warn_select_tag_replace"),
-                                tr("warn_select_tag_replace_msg"))
-            return
-
-        dlg = ReplaceTagsDialog(selected, self)
-        if dlg.exec() != ReplaceTagsDialog.Accepted:
-            return
-
-        replace_map = dlg.get_replace_map()
-        if not replace_map:
-            QMessageBox.information(self, tr("replace_nothing"), tr("replace_nothing_msg"))
-            return
-
-        before = self._snapshot()
-        affected = 0
-        for idx, img in enumerate(self.images):
-            modified = False
-            for old_tag, new_tag in replace_map.items():
-                if old_tag in img['tags']:
-                    img['tags'].remove(old_tag)
-                    if new_tag not in img['tags']:
-                        img['tags'].append(new_tag)
-                    modified = True
-            if modified:
-                img['modified'] = True
-                self.image_grid.refresh_card(idx)
-                affected += 1
-
-        self._push_history(tr("history_replace_tags", map=replace_map), before)
-        self._reload_tags_panel()
-        QMessageBox.information(self, tr("replace_done"),
-                                tr("replace_done_msg", count=affected))
+        run_replace_tags(self)
+    
+    def open_calc_dataset(self):
+        dlg = CalcDatasetDialog(root_folder=self.root_folder, standalone_app=False, parent=self)
+        dlg.exec()
 
     # ──────────────────────────────────────────────
     #  Waifu Tagger
     # ──────────────────────────────────────────────
     def open_waifu_tagger(self):
+        if not self.root_folder:
+            QMessageBox.information(self, tr("ldl_no_images"), tr("resort_no_folder_open_msg"))
+            return False
+        
         dlg = WaifuTaggerWindow(
             parent=self,
             current_folder=self.current_folder,
             root_folder=self.root_folder,
         )
         dlg.tagging_started.connect(self._on_tagging_started)
-        dlg.exec()
-
-    def open_calc_dataset(self):
-        dlg = CalcDatasetDialog(root_folder=self.root_folder, parent=self)
         dlg.exec()
 
     def _on_tagging_started(self, config: dict):
@@ -894,25 +923,33 @@ class MainWindow(QMainWindow):
     #  Dict Manager
     # ──────────────────────────────────────────────
     def _apply_dict_to_panel(self):
-        """Build {group: [expanded_tags]} và đẩy vào TagPanel."""
+        """Build {group: [expanded_tags]} và đẩy vào TagPanel, bỏ qua nhóm có Hidden: true."""
         if not self._dict_data:
             self.tag_panel.set_dict_groups({})
             return
-        engine  = VirtualTagEngine(self._dict_data)
-        tag_map = engine.build_tag_map()             # expanded_tag → group_name
+
+        engine = VirtualTagEngine(self._dict_data)
+        tag_map = engine.build_tag_map()              # expanded_tag → group_name
         groups: dict[str, list[str]] = {}
         for tag, gname in tag_map.items():
             groups.setdefault(gname, []).append(tag)
-        # Giữ thứ tự theo order, bỏ BREAK
-        ordered = {g: groups[g] for g in self._dict_order if g != "BREAK" and g in groups}
-        for g, v in groups.items():                  # thêm nhóm còn sót
-            if g not in ordered:
+
+        # 🔍 Hàm kiểm tra nhóm có cấu hình "Hidden": true không
+        def is_hidden_group(gname: str) -> bool:
+            g_obj = self._dict_data.get(gname, {})
+            return isinstance(g_obj, dict) and g_obj.get("Hidden", False)
+
+        # Giữ thứ tự theo order, bỏ BREAK và nhóm Hidden
+        ordered = {
+            g: groups[g] for g in self._dict_order 
+            if g != "BREAK" and g in groups and not is_hidden_group(g)
+        }
+        # Thêm nhóm còn sót (không có trong order), cũng bỏ Hidden
+        for g, v in groups.items():
+            if g not in ordered and not is_hidden_group(g):
                 ordered[g] = v
+
         self.tag_panel.set_dict_groups(ordered)
-        # Sync resort window nếu đang mở
-        if self._resort_win and self._resort_win.isVisible():
-            self._resort_win.load_data(self._dict_data, self._dict_order)
-            self._resort_win.set_folders(self.current_folder, self.root_folder)
 
     def dict_new(self):
         name, ok = QInputDialog.getText(self, tr("new_dict_title"), tr("new_dict_prompt"))
@@ -930,10 +967,31 @@ class MainWindow(QMainWindow):
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"order": []}, f, indent=2, ensure_ascii=False)
         self._apply_dict_to_panel()
+        self._act_dict_open_mgr.setEnabled(True)
         self.statusBar().showMessage(f"{tr('status_new_dict')}: {path}")
 
-    def dict_load(self):
-        path, _ = QFileDialog.getOpenFileName(self, tr("load_dict_title"), "", "JSON (*.json)")
+    def set_auto_load_dict(self):
+        """Mở hộp thoại chọn file và lưu đường dẫn vào settings.ini"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, tr("dlg_load_dict"), "", "JSON Files (*.json);;All Files (*)"
+        )
+        if file_path:
+            self.settings.setValue("auto_load_dict_path", file_path)
+            self._load_dict_from_path(file_path)
+            QMessageBox.information(self, tr("success"), f"Đã thiết lập tự động load:\n{file_path}")
+
+    def check_auto_load_dict(self):
+        """Hàm này gọi khi khởi động ứng dụng"""
+        path = self.settings.value("auto_load_dict_path", "")
+        if path and os.path.exists(path):
+            self.dict_load(path)
+
+    def dict_load(self, select_path=None):
+        if select_path:
+            path = select_path
+        else:
+            path, _ = QFileDialog.getOpenFileName(self, tr("load_dict_title"), "", "JSON (*.json)")
+        
         if path:
             self._do_load_dict(path)
 
@@ -948,26 +1006,10 @@ class MainWindow(QMainWindow):
         self._dict_data  = {k: v for k, v in raw.items() if k != "order"}
         self._dict_path  = path
         self._apply_dict_to_panel()
+        self._act_dict_open_mgr.setEnabled(True)
         if self._dict_tags_win and self._dict_tags_win.isVisible():
             self._dict_tags_win.load_data(self._dict_data, self._dict_order, path)
         self.statusBar().showMessage(f"{tr('status_loaded_dict')}: {path}")
-
-    def dict_save(self):
-        if not self._dict_path:
-            path, _ = QFileDialog.getSaveFileName(self, tr('dict_dialog_save'), "bookdict.json", "JSON (*.json)")
-            if not path:
-                return
-            self._dict_path = path
-        with open(self._dict_path, "w", encoding="utf-8") as f:
-            json.dump({"order": self._dict_order, **self._dict_data}, f, indent=2, ensure_ascii=False)
-        self.statusBar().showMessage(f"{tr('dict_saved')}: {self._dict_path}")
-
-    def dict_reload(self):
-        if not self._dict_path:
-            QMessageBox.information(self, "Dict", tr("no_dict_loaded"))
-            return
-        self._do_load_dict(self._dict_path)
-        self.statusBar().showMessage(f"{tr('dict_reload')}: {self._dict_path}")
 
     def dict_open_manager(self):
         if self._dict_tags_win is None or not self._dict_tags_win.isVisible():
@@ -991,113 +1033,6 @@ class MainWindow(QMainWindow):
         if self._dict_tags_win:
             self._dict_path = self._dict_tags_win.current_path
         self._apply_dict_to_panel()
-
-    # ──────────────────────────────────────────────
-    #  Resort Tags
-    # ──────────────────────────────────────────────
-    def open_resort_tags(self):
-        if not self._dict_data:
-            QMessageBox.warning(self, tr('resort_advanced_title'), tr('resort_advanced_load_first'))
-            return
-
-        self._resort_win = ResortTagsWidget(
-            json_data      = self._dict_data,
-            order          = self._dict_order,
-            current_folder = self.current_folder,
-            root_folder    = self.root_folder,
-            process_fn     = self._on_resort_process,
-            parent         = self,          # parent=self de modal block dung
-        )
-        self._resort_win.setWindowTitle(tr('resort_advanced_title'))
-        self._resort_win.resize(960, 580)
-        self._resort_win.order_changed.connect(self._on_resort_order_changed)
-        self._resort_win.exec()
-
-    def _on_resort_order_changed(self, new_order: list):
-        """Khi kéo thả thứ tự trong Resort window → sync lại dict order."""
-        self._dict_order = new_order
-
-    def _on_resort_process(self, target: str, order: list, json_data: dict, global_mode: bool):
-        """
-        Process folder: resort .txt files theo order dict.
-        Nếu global_mode=True → đệ quy từ root_folder.
-        Đây là process_fn được truyền vào ResortTagsWidget.
-        """
-
-        engine  = VirtualTagEngine(json_data)
-        tag_map = engine.build_tag_map()
-
-        def collect_txts():
-            if global_mode:
-                for root, _, files in os.walk(target):
-                    for fname in files:
-                        if fname.lower().endswith(".txt"):
-                            yield os.path.join(root, fname)
-            else:
-                for fname in os.listdir(target):
-                    if fname.lower().endswith(".txt"):
-                        yield os.path.join(target, fname)
-
-        count, errors = 0, []
-        for fpath in collect_txts():
-            try:
-                raw  = open(fpath, encoding="utf-8").read().strip()
-                tags = [t.strip() for t in raw.replace("\n", ",").split(",") if t.strip()]
-                if not tags:
-                    continue
-
-                # Bucket tags theo group
-                buckets: dict[str, list] = {}
-                leftover = list(tags)
-                for gname in order:
-                    if gname == "BREAK":
-                        continue
-                    gdata    = json_data.get(gname, {})
-                    tags_raw = gdata.get("Tags", gdata.get("tags", {}))
-                    g_keys   = set(tags_raw.keys() if isinstance(tags_raw, dict) else tags_raw)
-                    expanded = {t for t, g in tag_map.items() if g == gname}
-                    matched  = [t for t in leftover
-                                if t.lower() in (g_keys | expanded) or t in (g_keys | expanded)]
-                    for t in matched:
-                        leftover.remove(t)
-                    if matched:
-                        buckets[gname] = matched
-
-                # Build output theo order + BREAK
-                parts, cur = [], []
-                for item in order:
-                    if item == "BREAK":
-                        if cur:
-                            parts.append(", ".join(cur))
-                            cur = []
-                    else:
-                        cur.extend(buckets.get(item, []))
-                if cur:
-                    parts.append(", ".join(cur))
-                if leftover:
-                    if parts:
-                        parts[-1] += ", " + ", ".join(leftover)
-                    else:
-                        parts.append(", ".join(leftover))
-
-                with open(fpath, "w", encoding="utf-8") as f:
-                    f.write(",\n".join(parts))
-                count += 1
-            except Exception as e:
-                errors.append(f"{os.path.basename(fpath)}: {e}")
-
-        success_msg = tr("resort_success_msg", count=count)
-        if errors:
-            error_detail = tr("resort_error_msg", error_count=len(errors))
-            msg = f"✅ {success_msg}\n⚠ {error_detail}\n" + "\n".join(errors[:5])
-        else:
-            msg = f"✅ {success_msg}"
-
-        QMessageBox.information(self._resort_win, tr("resort_done_title"), msg)
-
-        # Reload lại folder đang xem để ảnh refresh
-        if self.current_folder:
-            self._load_folder(self.current_folder)
 
     # ──────────────────────────────────────────────
     #  Closing

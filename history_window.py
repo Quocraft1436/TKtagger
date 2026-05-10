@@ -2,20 +2,21 @@
 history_window.py - Simple timeline history window
 """
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout,
-    QPushButton, QListWidget, QListWidgetItem
+    QDockWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QListWidget, QListWidgetItem, QWidget
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from i18n import tr
 
 
-class HistoryWindow(QDialog):
+class HistoryWindow(QDockWidget):
     def __init__(self, history_manager, parent=None):
         super().__init__(parent)
         self.history = history_manager
 
-        self.setMinimumSize(360, 500)
+        self.main_widget = QWidget()
+        self.setWidget(self.main_widget)
 
         self.setup_ui()
         self.retranslate_ui()
@@ -24,7 +25,7 @@ class HistoryWindow(QDialog):
         self.refresh()
 
     def setup_ui(self):
-        layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self.main_widget)
 
         # Timeline list
         self.timeline = QListWidget()

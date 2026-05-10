@@ -1,3 +1,7 @@
+"""
+dict_tags.py - Dictionary tag manager widget for editing tag groups and tags in a JSON structure.
+Provides UI for adding/removing groups and tags, marking groups as hidden, and saving to JSON.
+"""
 from __future__ import annotations
 import json, re
 from itertools import product
@@ -8,6 +12,10 @@ from PySide6.QtWidgets import (
     QFrame, QSplitter, QFileDialog, QMessageBox,
     QGroupBox, QFormLayout, QCheckBox
 )
+
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QIcon
@@ -412,7 +420,7 @@ class DictTagsWidget(QWidget):
         if data[0] == "group":
             if QMessageBox.question(
                 self,
-                tr("dict_confirm_title"),
+                tr("ldl_comfirm"),
                 tr("dict_confirm_remove_group", group=data[1]),
             ) == QMessageBox.Yes:
                 del self.json_data[data[1]]

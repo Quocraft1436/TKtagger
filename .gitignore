@@ -2,6 +2,7 @@
 __pycache__/
 .venv/
 .env
+venv/
 
 # Thư mục lưu trữ và cấu hình cá nhân
 Archive/

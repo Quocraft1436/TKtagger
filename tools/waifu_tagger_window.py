@@ -1,15 +1,53 @@
 """
 waifu_tagger_window.py - WD14 Tagger Settings Dialog (PySide6)
+Restyled to match app-wide tone: dark-friendly, compact QGroupBox sections,
+green primary action button consistent with resort_tag_window_operation.py
 """
 
 import os
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QLineEdit, QCheckBox, QSlider, QComboBox, QPushButton,
-    QGroupBox, QScrollArea, QFileDialog, QSizePolicy, QWidget
+    QGroupBox, QScrollArea, QFileDialog, QWidget, QFrame
 )
 from PySide6.QtCore import Qt, Signal
 from i18n import tr
+
+# ── App-wide style constants (mirror what the rest of the app uses) ──────────
+_BTN_PRIMARY = (
+    "QPushButton {"
+    "  font-weight: bold;"
+    "  background: #4CAF50;"       # same green as resort_tag process btn
+    "  color: white;"
+    "  border: none;"
+    "  border-radius: 3px;"
+    "  padding: 4px 12px;"
+    "}"
+    "QPushButton:hover { background: #43A047; }"
+    "QPushButton:pressed { background: #388E3C; }"
+    "QPushButton:disabled { background: #555; color: #888; }"
+)
+
+_BTN_SECONDARY = (
+    "QPushButton {"
+    "  background: transparent;"
+    "  border: 1px solid #555;"
+    "  border-radius: 3px;"
+    "  padding: 4px 12px;"
+    "}"
+    "QPushButton:hover { background: #3a3a3a; }"
+)
+
+_BTN_BROWSE = (
+    "QPushButton {"
+    "  background: #2d2d2d;"
+    "  border: 1px solid #555;"
+    "  border-radius: 3px;"
+    "  padding: 3px 8px;"
+    "  min-width: 72px;"
+    "}"
+    "QPushButton:hover { background: #3a3a3a; }"
+)
 
 
 class WaifuTaggerWindow(QDialog):
@@ -19,7 +57,7 @@ class WaifuTaggerWindow(QDialog):
         super().__init__(parent)
         self.current_folder = current_folder or ""
         self.root_folder = root_folder or current_folder or ""
-        self.resize(640, 860)
+        self.resize(580, 780)
         self.setup_ui()
         self.retranslate_ui()
 
@@ -27,51 +65,55 @@ class WaifuTaggerWindow(QDialog):
     #  UI
     # ─────────────────────────────────────────────
     def setup_ui(self):
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.setSpacing(6)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(10, 10, 10, 10)
+        root.setSpacing(6)
 
+        # ── Scrollable body ───────────────────────
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
 
-        self._container = QGroupBox()
-        layout = QVBoxLayout(self._container)
-        layout.setSpacing(8)
+        body = QWidget()
+        layout = QVBoxLayout(body)
+        layout.setContentsMargins(2, 2, 4, 2)
+        layout.setSpacing(6)
 
-        # ── 0. Execution Mode ──────────────────────────────
+        # ── 0. Execution Mode ─────────────────────
         self._mode_group = QGroupBox()
         v_mode = QVBoxLayout(self._mode_group)
+        v_mode.setSpacing(4)
 
         mode_row = QHBoxLayout()
         self._run_mode_lbl = QLabel()
         mode_row.addWidget(self._run_mode_lbl)
         self.run_mode = QComboBox()
-        mode_row.addWidget(self.run_mode, 1)
-        
-        self.run_mode.addItems(["Local", "API"]) 
+        self.run_mode.addItems(["Local", "API"])
         self.run_mode.setCurrentIndex(0)
+        mode_row.addWidget(self.run_mode, 1)
         v_mode.addLayout(mode_row)
 
         self.api_url_frame = QWidget()
-        api_layout = QHBoxLayout(self.api_url_frame)
-        api_layout.setContentsMargins(0, 0, 0, 0)
+        api_row = QHBoxLayout(self.api_url_frame)
+        api_row.setContentsMargins(0, 0, 0, 0)
         self._api_url_lbl = QLabel()
-        api_layout.addWidget(self._api_url_lbl)
+        api_row.addWidget(self._api_url_lbl)
         self.api_url = QLineEdit("http://127.0.0.1:7860/")
-        api_layout.addWidget(self.api_url)
+        api_row.addWidget(self.api_url)
         v_mode.addWidget(self.api_url_frame)
 
         self.run_mode.currentIndexChanged.connect(
             lambda i: self.api_url_frame.setVisible(i == 1)
         )
         self.api_url_frame.setVisible(False)
-
         layout.addWidget(self._mode_group)
 
-        # ── 1. Model Settings ──────────────────────────────
+        # ── 1. Model Settings ─────────────────────
         self._model_group = QGroupBox()
         grid = QGridLayout(self._model_group)
         grid.setColumnStretch(1, 1)
+        grid.setVerticalSpacing(4)
+        grid.setHorizontalSpacing(6)
 
         self._repo_id_lbl = QLabel()
         grid.addWidget(self._repo_id_lbl, 0, 0)
@@ -81,11 +123,9 @@ class WaifuTaggerWindow(QDialog):
         self._onnx_lbl = QLabel()
         grid.addWidget(self._onnx_lbl, 1, 0)
         self.onnx_path = QLineEdit()
-        self.onnx_path.setReadOnly(False)
         grid.addWidget(self.onnx_path, 1, 1)
-
         self._btn_browse_onnx = QPushButton()
-        self._btn_browse_onnx.setFixedWidth(90)
+        self._btn_browse_onnx.setStyleSheet(_BTN_BROWSE)
         self._btn_browse_onnx.clicked.connect(self._browse_onnx)
         grid.addWidget(self._btn_browse_onnx, 1, 2)
 
@@ -94,34 +134,25 @@ class WaifuTaggerWindow(QDialog):
         self.csv_path = QLineEdit()
         grid.addWidget(self.csv_path, 2, 1)
         self._btn_browse_csv = QPushButton()
-        self._btn_browse_csv.setFixedWidth(90)
+        self._btn_browse_csv.setStyleSheet(_BTN_BROWSE)
         self._btn_browse_csv.clicked.connect(self._browse_csv)
         grid.addWidget(self._btn_browse_csv, 2, 2)
 
         self.force_download = QCheckBox()
-        grid.addWidget(self.force_download, 3, 1, 1, 2)
+        grid.addWidget(self.force_download, 3, 0, 1, 3)
 
         layout.addWidget(self._model_group)
 
-        # ── 2. Image Pre-processing ────────────────────────
-        self._preproc_group = QGroupBox()
-        v_pre = QVBoxLayout(self._preproc_group)
-
-        self.alpha_to_white = QCheckBox()
-        self.alpha_to_white.setChecked(True)
-        v_pre.addWidget(self.alpha_to_white)
-
-        layout.addWidget(self._preproc_group)
-
-        # ── 3. Scope / Folder ──────────────────────────────
+        # ── 3. Scope / Folder ─────────────────────
         self._scope_group = QGroupBox()
         v_scope = QVBoxLayout(self._scope_group)
+        v_scope.setSpacing(4)
 
         scope_row = QHBoxLayout()
         self._target_folder_lbl = QLabel()
         scope_row.addWidget(self._target_folder_lbl)
         self.folder_label = QLabel(self.current_folder or "")
-        self.folder_label.setStyleSheet("color:#aaa; font-size:11px;")
+        self.folder_label.setStyleSheet("color: #888; font-size: 11px;")
         self.folder_label.setWordWrap(True)
         scope_row.addWidget(self.folder_label, 1)
         v_scope.addLayout(scope_row)
@@ -130,18 +161,22 @@ class WaifuTaggerWindow(QDialog):
         self.include_subfolders.setChecked(False)
         v_scope.addWidget(self.include_subfolders)
 
+        self.alpha_to_white = QCheckBox()
+        self.alpha_to_white.setChecked(True)
+        v_scope.addWidget(self.alpha_to_white)
         layout.addWidget(self._scope_group)
 
-        # ── 4. Tag Processing ──────────────────────────────
+        # ── 4. Tag Processing ─────────────────────
         self._opt_group = QGroupBox()
         v_opt = QVBoxLayout(self._opt_group)
+        v_opt.setSpacing(4)
 
-        self.char_expand = QCheckBox()
+        self.char_expand      = QCheckBox()
         self.remove_underscore = QCheckBox()
         self.remove_underscore.setChecked(True)
-        self.append_tags = QCheckBox()
-        self.use_rating = QCheckBox()
-        self.rating_last = QCheckBox()
+        self.append_tags      = QCheckBox()
+        self.use_rating       = QCheckBox()
+        self.rating_last      = QCheckBox()
 
         for w in [self.char_expand, self.remove_underscore, self.append_tags,
                   self.use_rating, self.rating_last]:
@@ -149,9 +184,10 @@ class WaifuTaggerWindow(QDialog):
 
         layout.addWidget(self._opt_group)
 
-        # ── 5. Filters ────────────────────────────────────
+        # ── 5. Filters ────────────────────────────
         self._filter_group = QGroupBox()
         v_filter = QVBoxLayout(self._filter_group)
+        v_filter.setSpacing(4)
 
         self._prefix_lbl = QLabel()
         v_filter.addWidget(self._prefix_lbl)
@@ -165,9 +201,10 @@ class WaifuTaggerWindow(QDialog):
 
         layout.addWidget(self._filter_group)
 
-        # ── 6. Thresholds ─────────────────────────────────
+        # ── 6. Thresholds ─────────────────────────
         self._thresh_group = QGroupBox()
         t_grid = QGridLayout(self._thresh_group)
+        t_grid.setVerticalSpacing(6)
 
         self._gen_lbl = QLabel()
         self.gen_slider, self.gen_val = self._create_slider(35)
@@ -182,28 +219,39 @@ class WaifuTaggerWindow(QDialog):
         t_grid.addWidget(self.char_val, 1, 2)
 
         layout.addWidget(self._thresh_group)
+        layout.addStretch()
 
-        # ── Run button ────────────────────────────────────
+        scroll.setWidget(body)
+        root.addWidget(scroll, stretch=1)
+
+        # ── Bottom action bar ─────────────────────
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("color: #444;")
+        root.addWidget(sep)
+
+        btn_bar = QHBoxLayout()
+        btn_bar.addStretch()
+
+        self._cancel_btn = QPushButton()
+        self._cancel_btn.setStyleSheet(_BTN_SECONDARY)
+        self._cancel_btn.clicked.connect(self.reject)
+        btn_bar.addWidget(self._cancel_btn)
+
         self.btn_run = QPushButton()
-        self.btn_run.setFixedHeight(44)
-        self.btn_run.setStyleSheet(
-            "QPushButton { background-color:#4a90d9; color:white; font-weight:bold; font-size:14px; border-radius:4px; }"
-            "QPushButton:hover { background-color:#357abd; }"
-        )
+        self.btn_run.setFixedHeight(34)
+        self.btn_run.setStyleSheet(_BTN_PRIMARY)
         self.btn_run.clicked.connect(self._collect_and_run)
+        btn_bar.addWidget(self.btn_run)
 
-        scroll.setWidget(self._container)
-        main_layout.addWidget(scroll, stretch=1)
-        main_layout.addWidget(self.btn_run)
+        root.addLayout(btn_bar)
 
     def retranslate_ui(self):
         self.setWindowTitle(tr("waifu_win_title"))
-        self._container.setTitle(tr("waifu_section_config"))
 
         # Execution mode
         self._mode_group.setTitle(tr("waifu_exec_mode"))
         self._run_mode_lbl.setText(tr("waifu_run_mode_label"))
-        # Repopulate combo to update translated items
         current_idx = self.run_mode.currentIndex()
         self.run_mode.blockSignals(True)
         self.run_mode.clear()
@@ -223,11 +271,6 @@ class WaifuTaggerWindow(QDialog):
         self._btn_browse_csv.setText(tr("waifu_browse"))
         self.force_download.setText(tr("waifu_force_download"))
 
-        # Pre-processing
-        self._preproc_group.setTitle(tr("waifu_preproc"))
-        self.alpha_to_white.setText(tr("waifu_alpha_white"))
-        self.alpha_to_white.setToolTip(tr("waifu_alpha_tooltip"))
-
         # Scope
         self._scope_group.setTitle(tr("waifu_scope"))
         self._target_folder_lbl.setText(tr("waifu_target_folder"))
@@ -235,6 +278,8 @@ class WaifuTaggerWindow(QDialog):
             self.folder_label.setText(tr("waifu_no_folder"))
         self.include_subfolders.setText(tr("waifu_include_sub"))
         self.include_subfolders.setToolTip(tr("waifu_include_sub_tooltip"))
+        self.alpha_to_white.setText(tr("waifu_alpha_white"))
+        self.alpha_to_white.setToolTip(tr("waifu_alpha_tooltip"))
 
         # Tag processing
         self._opt_group.setTitle(tr("waifu_tag_processing"))
@@ -254,7 +299,8 @@ class WaifuTaggerWindow(QDialog):
         self._gen_lbl.setText(tr("waifu_general"))
         self._char_lbl.setText(tr("waifu_character"))
 
-        # Run button
+        # Buttons
+        self._cancel_btn.setText(tr("ldl_cancel"))
         self.btn_run.setText(tr("waifu_run_btn"))
 
     # ─────────────────────────────────────────────
