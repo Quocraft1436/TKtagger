@@ -355,5 +355,9 @@
   "underscore_no_changes": "No tags need to be changed.",
   "underscore_action_space_to": "Space → Underscore ({count} images)",
   "underscore_action_to_space": "Underscore → Space ({count} images)",
-  "underscore_success_status": "{action}: {changed_tags} tags have been modified."
+  "underscore_success_status": "{action}: {changed_tags} tags have been modified.",
+
+  "sort_by_dictary_preset_label": "Preset:",
+  "sort_by_dictary_add_preset_tooltip": "Add current order as preset",
+  "sort_by_dictary_del_preset_tooltip": "Remove selected preset"
 }

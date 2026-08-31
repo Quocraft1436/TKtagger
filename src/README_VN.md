@@ -12,7 +12,7 @@ Công cụ gắn thẻ ảnh mạnh mẽ xây dựng trên PySide6, hỗ trợ W
 
 ## Giao diện
 
-![Giao diện chính](Screenshot_20260510_230252.png)
+![Giao diện chính](Screenshot_20260831_112158.png)
 
 ---
 

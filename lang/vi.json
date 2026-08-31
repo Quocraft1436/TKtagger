@@ -355,5 +355,9 @@
   "underscore_no_changes": "Không có tag nào cần đổi.",
   "underscore_action_space_to": "Space → Underscore ({count} ảnh)",
   "underscore_action_to_space": "Underscore → Space ({count} ảnh)",
-  "underscore_success_status": "{action}: {changed_tags} tag đã được thay đổi."
+  "underscore_success_status": "{action}: {changed_tags} tag đã được thay đổi.",
+
+  "sort_by_dictary_preset_label": "Cài đặt sắp xếp:",
+  "sort_by_dictary_add_preset_tooltip": "Thêm cài đặt sắp xếp mới",
+  "sort_by_dictary_del_preset_tooltip": "Xóa cài đặt sắp xếp"
 }

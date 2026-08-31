@@ -8,7 +8,7 @@ A powerful image tagging tool built with PySide6, supporting WD14 Tagger and bul
 
 ## Interface
 
-![Main Interface](src/Screenshot_20260510_223039.png)
+![Main Interface](src/Screenshot_20260831_112158.png)
 
 English (README.md), Tiếng Việt (src/README_VN.md)
 
@@ -65,7 +65,6 @@ python3 main.py /path/to/folder_app
 ---
 
 ## Project Structure
-
 ```
 TKtagger/
 │
@@ -74,72 +73,70 @@ TKtagger/
 ├── settings_manager.py             # Singleton settings via ConfigParser (settings.ini)
 ├── settings.ini                    # User settings file (auto-generated)
 │
-├── tag_panel.py                    # Panel bên phải: danh sách tags theo thư mục
-├── image_grid.py                   # Grid hiển thị ảnh, selection management
+├── tag_panel.py                    # Right-side panel: tag list organized by folder
+├── image_grid.py                   # Image display grid and selection management
 ├── file_ops.py                     # Load/save images & tags, build folder tree
 ├── history_manager.py              # Undo/Redo stack manager
-├── history_window.py               # UI panel hiển thị Action History
-├── dialogs.py                      # AboutDialog và các dialog nhỏ
+├── history_window.py               # UI panel displaying Action History
+├── dialogs.py                      # AboutDialog and other small dialogs
 ├── i18n.py                         # Internationalization (tr(), set_language())
 │
-├── defualt_dictbook.json           # Dict mẫu đi kèm app
+├── default_dictbook.json           # Default dictionary included with the app
 ├── requirements.txt                # Dependencies
 │
-├── lang/                           # Ngôn ngữ
+├── lang/                           # Language files
 │   ├── en.json                     # English
-│   └── vi.json                     # Tiếng Việt
+│   └── vi.json                     # Vietnamese
 │
 ├── libs/                           # Reusable UI components
-│   └── draggable_list.py           # Draggable list widget với per-item delete
+│   └── draggable_list.py           # Draggable list widget with per-item deletion
 │
-├── tools/                          # Công cụ xử lý dataset
-│   ├── waifu_tagger_window.py      # WD14 Tagger — auto-tag ảnh bằng ONNX / API
-│   ├── tagger_logic.py             # Logic chạy inference (local + API mode)
+├── tools/                          # Dataset processing tools
+│   ├── waifu_tagger_window.py      # WD14 Tagger — auto-tag images via ONNX / API
+│   ├── tagger_logic.py             # Inference logic (local + API modes)
 │   ├── calculator_dataset.py       # Dataset Calculator dialog
 │   ├── dict_tags.py                # Dict Tags manager + VirtualTagEngine
-│   ├── remove_duplicate_tags.py    # Xoá tag trùng trong .txt files
+│   ├── remove_duplicate_tags.py    # Remove duplicate tags in .txt files
 │   ├── replace_tags.py             # Replace tags dialog (bulk edit)
-│   └── resort_tag_window_operation.py  # Resort + Sort tags (gộp từ 2 file cũ)
+│   └── resort_tag_window_operation.py  # Resort + Sort tags (merge from 2 old files)
 │
 └── src/                            # Assets
-    ├── Qt_logo_2016.svg
-    └── Screenshot_*.png            # Preview images cho README
+├── Qt_logo_2016.svg
+└── Screenshot_*.png            # Preview images for README
 ```
 
 ---
 
 ## Changelog (overview) 1.4.1
 
-### ✨ Added: Tính năng phụ
-Auto-load Dict: Thiết lập đường dẫn sổ thẻ cố định tại menu Dict. App sẽ tự động load ngay khi khởi động qua settings.ini, không còn phải chọn thủ công mỗi lần mở máy.
+### ✨ Added: Additional Features
+Auto-load Dict: Set a fixed path for the dictionary file in the Dict menu. The app now automatically loads it upon startup via `settings.ini`, eliminating the need to select it manually every time the program opens.
 
-Edit Menu mở rộng: Bổ sung các phím tắt tiêu chuẩn (Ctrl+A, D, I) và tính năng Nuke Selection (xóa sạch tag của ảnh đang chọn) để dọn dẹp dữ liệu nhanh.
+Expanded Edit Menu: Added standard shortcuts (Ctrl+A, D, I) and a "Nuke Selection" feature (wiping all tags from the currently selected image) for quick data cleanup.
 
-### 🛠 Changes: Cấu trúc UX
-Reorganize Project: Quy hoạch lại toàn bộ mã nguồn. Các script lẻ được đưa vào thư mục /tools, gộp các logic sắp xếp tương đồng vào một file duy nhất để dễ quản lý.
+### 🛠 Changes: UX Structure
+Project Reorganization: Restructured the entire codebase. Individual scripts were moved to the `/tools` folder, and similar sorting logic was consolidated into a single file for easier management.
 
-Folder Workflow: Thay cơ chế lưu trữ session. Bạn có thể nhảy giữa nhiều folder mà không mất state (không bị hỏi save liên tục); lệnh Ctrl+S giờ đây sẽ ghi đè toàn bộ thay đổi của tất cả các folder đã mở trong session ra folder.
+Folder Workflow: Changed the session storage mechanism. You can now switch between multiple folders without losing state (no constant prompts to save); the Ctrl+S command now writes all changes from every open folder in the session back to the respective folders.
 
-INI Settings: Chuyển từ QSettings (Registry) sang file settings.ini nằm ngay cạnh app. Tiện cho việc backup hoặc di chuyển thư mục app mà không mất cấu hình.
+INI Settings: Switched from QSettings (Registry) to a `settings.ini` file located alongside the app. This facilitates backups and moving the app folder without losing configuration settings.
 
-Chuẩn hóa WD14 Tagger: Redesign lại cửa sổ tagger (thêm scrollbar, chỉnh size). Toàn bộ hệ thống nút bấm được áp dụng bộ mã màu chuẩn (_BTN_PRIMARY, _BTN_BROWSE),
+WD14 Tagger Standardization: Redesigned the tagger window (added scrollbar, adjusted size). Applied a standardized color-coding system to all buttons (`_BTN_PRIMARY`, `_BTN_BROWSE`).
 
-Refactor Core: Loại bỏ biến self.lang thừa, gộp logic Resort Tags ra khỏi file main để code "sạch" hơn. Đồng nhất tiền tố i18n sang ldl_.
+Core Refactoring: Removed the redundant `self.lang` variable and moved "Resort Tags" logic out of the main file for cleaner code. Standardized i18n prefixes to `ldl_`.
 
-### 🐛 Fixed: Xử lý các lỗi
+### 🐛 Fixed: Bug Fixes
 
-Lịch sử (History): Đảo ngược thứ tự hiển thị để hành động mới nhất luôn nằm đúng vị trí. Quan trọng nhất: WD14 Tagger đã có History, lỗi không thể Undo sau khi auto-tag đã biến mất.
+History: Reversed the display order so the most recent action always appears in the correct position. Most importantly: History support added for WD14 Tagger; the issue preventing Undo operations after auto-tagging has been resolved.
 
-UI Filter: Sửa lỗi Hidden Group vẫn hiển thị trên TagPanel và ResortTag dù đã đánh dấu ẩn.
+UI Filter: Fixed a bug where "Hidden Groups" remained visible in the TagPanel and ResortTag view even after being marked as hidden.
 
-**Note:** Chú ý: các thông tin này điều được AI viết tổng hợp qua.
-
-## Roadmap
+**Note:** Please note that this information was summarized and written by AI. ## Roadmap
 
 1. ✅ Basic tagger UI
 2. ✅ Integrated WD14
-3. ✅ Multiple language support
+3. ✅ Multi-language support
 4. ✅ System dictionary tags
 5. ✅ Redesigned UI
 
-sau khi đã hoàn thành Roadmap nhì các update về phía sau đã số sẽ không thay đổi nhiều, chuyện về bảo trì sửa lỗi
+Once the roadmap is complete, subsequent updates will mostly be minor, focusing on maintenance and bug fixes.
