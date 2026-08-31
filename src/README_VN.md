@@ -110,43 +110,40 @@ TKtagger/
 
 ---
 
-## Nhật ký thay đổi — v1.4.1
+## Nhật ký thay đổi — v1.5.0
 
-### ✨ Tính năng mới
+### Added
+- Tool mới: Swap Underscore (`tools/underscore_swap.py`) — chuyển đổi qua lại
+  giữa dấu gạch dưới "_" và khoảng trắng " " trong tag, hỗ trợ áp dụng toàn cục.
+- Menubar > Settings: cửa sổ cài đặt mới (`settings_dialog.py`) cho phép:
+  - Chọn ngôn ngữ giao diện (đa ngôn ngữ, load từ `lang/*.json`)
+  - Chọn định dạng file tag khi load: .txt / .cap / phần mở rộng tùy chỉnh
+  - Giới hạn số lượng tối đa History (spinbox `max_history`)
+- Tùy chọn vị trí khi thêm tag hàng loạt: chèn ở đầu (start) hoặc cuối (end)
+  danh sách tag (`add_tag_to_selected`).
+- Nút Chọn tất cả / Đảo chọn / Bỏ chọn tất cả cho panel filter tag chính
+  (tag_panel.py).
+- Preset dictionary: lưu đường dẫn và cấu trúc group dictionary đã dùng
+  gần nhất vào `preset_user.json` để tái sử dụng nhanh.
+- Chức năng Import tag mới chưa có trong dictionary (`ImportNewTagsDialog`
+  trong dict_tags.py).
 
-**Tự động load từ điển**
-Thiết lập đường dẫn từ điển cố định tại menu Dict. App sẽ tự động load ngay khi khởi động thông qua `settings.ini` — không cần chọn thủ công mỗi lần mở lại.
+### Changed
+- Cải thiện hiệu suất render card ảnh: thay thế nhiều QLabel riêng lẻ cho
+  từng tag bằng widget vẽ tùy chỉnh `TagRenderWidget` (dùng QPainter),
+  tag hiển thị dạng nền bo góc/label và có thể click để sửa.
+- Refactor toàn diện cấu trúc code (nhiều module main_window, image_grid,
+  dict_tags, resort_tag_window_operation được viết lại).
 
-**Mở rộng menu Chỉnh sửa**
-Bổ sung các phím tắt tiêu chuẩn (`Ctrl+A`, `Ctrl+D`, `Ctrl+I`) và tính năng **Nuke Selection** — xóa sạch toàn bộ thẻ của các ảnh đang chọn chỉ bằng một click.
+### Fixed
+- Sửa lỗi resort tag không đồng bộ trạng thái hiển thị: giao diện (card ảnh,
+  panel tag) nay được refresh trước khi hộp thoại thông báo "hoàn tất"
+  xuất hiện, tránh tình trạng thông báo xong nhưng UI chưa cập nhật.
 
-### 🛠 Thay đổi
+### Known gaps (chưa hoàn thành so với TODO)
+- Cửa sổ Resort Tag: search bar tại đây mới chỉ có nút "Bỏ chọn tất cả",
+  còn thiếu nút "Chọn tất cả" / "Đảo chọn" như đã có ở panel tag chính.
 
-**Tái tổ chức dự án**
-Toàn bộ script rời được đưa vào thư mục `/tools`. Các logic sắp xếp tương đồng được gộp vào một file duy nhất để dễ bảo trì.
-
-**Quy trình làm việc theo session**
-Cơ chế cache session mới: chuyển qua lại giữa nhiều folder thoải mái mà không mất state, không bị hỏi lưu liên tục. `Ctrl+S` ghi toàn bộ thay đổi của tất cả folder đã mở trong session ra disk chỉ một lần.
-
-**Cài đặt dạng INI**
-Chuyển từ QSettings (lưu vào Registry/plist của hệ điều hành) sang file `settings.ini` nằm ngay cạnh app. Dễ backup và di chuyển khi copy thư mục app sang máy khác.
-
-**Thiết kế lại WD14 Tagger**
-Cửa sổ được thu nhỏ lại và bọc trong `QScrollArea`. Toàn bộ nút bấm áp dụng bộ style chuẩn chung của app (`_BTN_PRIMARY` xanh lá, `_BTN_BROWSE` tối) — đồng bộ tông màu với phần còn lại.
-
-**Refactor lõi**
-Xóa biến `self.lang` thừa. Logic Resort Tags được tách ra khỏi `main_window.py`. Chuẩn hóa tiền tố i18n key sang `ldl_`.
-
-### 🐛 Sửa lỗi
-
-**Lịch sử hiển thị ngược thứ tự**
-Panel Lịch sử thao tác hiển thị entry từ dưới lên. Đã sửa — hành động mới nhất luôn nằm đúng vị trí.
-
-**WD14 Tagger không có snapshot lịch sử**
-Thao tác auto-tag không thể hoàn tác. Đã sửa — WD14 giờ push snapshot đúng cách vào history manager.
-
-**Hidden Group vẫn hiển thị**
-Nhóm được đánh dấu `"Hidden": true` trong từ điển vẫn bị render trên TagPanel và ResortTag. Đã sửa.
 
 > Nội dung changelog được tổng hợp với sự hỗ trợ của AI.
 

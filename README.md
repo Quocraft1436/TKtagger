@@ -107,29 +107,39 @@ TKtagger/
 
 ---
 
-## Changelog (overview) 1.4.1
+## Changelog [1.5.0] - 2026-08-31
 
-### ✨ Added: Additional Features
-Auto-load Dict: Set a fixed path for the dictionary file in the Dict menu. The app now automatically loads it upon startup via `settings.ini`, eliminating the need to select it manually every time the program opens.
+### Added
+- New tool: Swap Underscore (`tools/underscore_swap.py`) — toggles between
+underscores ("_") and spaces (" ") in tags; supports global application.
+- Menubar > Settings: new settings window (`settings_dialog.py`) allowing:
+- Selection of interface language (multi-language support, loaded from `lang/*.json`)
+- Selection of tag file format upon loading: .txt / .cap / custom extension
+- Setting the maximum history limit (`max_history` spinbox)
+- Positioning options for batch tag addition: insert at the start or end
+of the tag list (`add_tag_to_selected`).
+- Select All / Invert Selection / Deselect All buttons for the main tag filter panel
+(tag_panel.py).
+- Preset dictionary: saves the path and structure of the most recently used
+group dictionary to `preset_user.json` for quick reuse.
+- Functionality to import new tags not currently in the dictionary (`ImportNewTagsDialog`
+in dict_tags.py).
 
-Expanded Edit Menu: Added standard shortcuts (Ctrl+A, D, I) and a "Nuke Selection" feature (wiping all tags from the currently selected image) for quick data cleanup.
+### Changed
+- Improved image card rendering performance: replaced multiple individual QLabels
+per tag with a custom-drawn widget, `TagRenderWidget` (using QPainter);
+tags are displayed as rounded-corner labels and are clickable for editing.
+- Comprehensive code refactoring (rewrote several modules: main_window, image_grid,
+dict_tags, resort_tag_window_operation).
 
-### 🛠 Changes: UX Structure
-Project Reorganization: Restructured the entire codebase. Individual scripts were moved to the `/tools` folder, and similar sorting logic was consolidated into a single file for easier management.
+### Fixed
+- Fixed tag reordering state synchronization issue: the interface (image cards,
+tag panel) now refreshes before the "complete" notification dialog appears,
+preventing the UI from lagging behind the notification.
 
-Folder Workflow: Changed the session storage mechanism. You can now switch between multiple folders without losing state (no constant prompts to save); the Ctrl+S command now writes all changes from every open folder in the session back to the respective folders.
-
-INI Settings: Switched from QSettings (Registry) to a `settings.ini` file located alongside the app. This facilitates backups and moving the app folder without losing configuration settings.
-
-WD14 Tagger Standardization: Redesigned the tagger window (added scrollbar, adjusted size). Applied a standardized color-coding system to all buttons (`_BTN_PRIMARY`, `_BTN_BROWSE`).
-
-Core Refactoring: Removed the redundant `self.lang` variable and moved "Resort Tags" logic out of the main file for cleaner code. Standardized i18n prefixes to `ldl_`.
-
-### 🐛 Fixed: Bug Fixes
-
-History: Reversed the display order so the most recent action always appears in the correct position. Most importantly: History support added for WD14 Tagger; the issue preventing Undo operations after auto-tagging has been resolved.
-
-UI Filter: Fixed a bug where "Hidden Groups" remained visible in the TagPanel and ResortTag view even after being marked as hidden.
+### Known gaps (incomplete relative to TODO list)
+- Resort Tag window: the search bar currently only has a "Deselect All" button;
+it lacks the "Select All" and "Invert Selection" buttons found in the main tag panel.
 
 **Note:** Please note that this information was summarized and written by AI. ## Roadmap
 
