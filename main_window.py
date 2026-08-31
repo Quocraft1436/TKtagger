@@ -452,7 +452,6 @@ class MainWindow(QMainWindow):
         self.tag_panel.replace_tags_requested.connect(self.open_replace_tag_window)
 
         tag_dock.setWidget(self.tag_panel)
-        self.addDockWidget(Qt.LeftDockWidgetArea, folder_dock)
 
         self.addDockWidget(Qt.LeftDockWidgetArea, tag_dock)
 
