@@ -171,6 +171,16 @@ class WaifuTaggerWindow(QDialog):
         v_opt = QVBoxLayout(self._opt_group)
         v_opt.setSpacing(4)
 
+        # TODO add HBox layout with Label here
+        mode_layout = QHBoxLayout()
+        self._write_mode_lbl = QLabel()
+        self.write_mode = QComboBox()
+        self.write_mode.addItems([ tr("waifu_mode_skip") , tr("waifu_mode_overwrite")])
+        self.write_mode.setCurrentIndex(1) # Mặc định là Overwrite
+        mode_layout.addWidget(self._write_mode_lbl)
+        mode_layout.addWidget(self.write_mode, 1)
+        v_opt.addLayout(mode_layout)
+
         self.char_expand      = QCheckBox()
         self.remove_underscore = QCheckBox()
         self.remove_underscore.setChecked(True)
@@ -360,6 +370,7 @@ class WaifuTaggerWindow(QDialog):
             "root_folder":        self.root_folder,
             "include_subfolders": self.include_subfolders.isChecked(),
 
+            "write_mode":         ["skip", "overwrite"][self.write_mode.currentIndex()],
             "gen_threshold":      self.gen_slider.value() / 100,
             "char_threshold":     self.char_slider.value() / 100,
             "char_expand":        self.char_expand.isChecked(),

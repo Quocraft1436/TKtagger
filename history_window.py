@@ -42,14 +42,13 @@ class HistoryWindow(QDockWidget):
         self.redo_btn.setIcon(QIcon.fromTheme("edit-redo"))
         self.redo_btn.clicked.connect(self._request_redo)
         
-        # Clear button will be replace to Discard for session history
         self.clear_btn = QPushButton()
         self.clear_btn.setIcon(QIcon.fromTheme("dialog-cancel"))
         self.clear_btn.clicked.connect(self._clear)
 
         btn_layout.addWidget(self.undo_btn)
         btn_layout.addWidget(self.redo_btn)
-        btn_layout.addWidget(self.clear_btn)
+        # btn_layout.addWidget(self.clear_btn)
 
         layout.addLayout(btn_layout)
 
@@ -87,6 +86,9 @@ class HistoryWindow(QDockWidget):
 
         self.undo_btn.setEnabled(self.history.can_undo())
         self.redo_btn.setEnabled(self.history.can_redo())
+
+        has_history = len(undo_list) > 0 or len(redo_list) > 0
+        self.clear_btn.setEnabled(has_history)
 
     def _request_undo(self):
         if self.parent():

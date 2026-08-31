@@ -1,12 +1,8 @@
 # TKtagger
 
-A powerful image tagging tool built with PySide6, supporting WD14 Tagger and bulk tag management for AI training datasets.
+A powerful image tagging tool built with PySide6, supporting WD14 Tagger and bulk tag management.
 
 > **Note:** This project uses AI assistance for coding.
-
----
-
-English (README.md) · [Tiếng Việt](src/README_VN.md)
 
 ---
 
@@ -14,20 +10,22 @@ English (README.md) · [Tiếng Việt](src/README_VN.md)
 
 ![Main Interface](src/Screenshot_20260510_223039.png)
 
+English (README.md), Tiếng Việt (src/README_VN.md)
+
 ---
 
 ## Features
 
 - **Bulk tag editing** — Add, remove, replace, or sort tags across multiple images at once
-- **WD14 Tagger** — Automatic tagging via local ONNX model or external API
-- **Undo / Redo** — Up to 256 steps with a full operation history panel (`Edit → Operation history` or `🕐 History`)
-- **Tag search** — Filter and find tags across your dataset with JEI-style multi-token search
-- **Quick tag interaction** — Click directly on a tag to delete or insert it
+- **WD14 Tagger** — Automatic tagging via local model or external API
+- **Undo / Redo** — Up to 256 steps with a full operation history window (`Edit → Operation history` or `🕐 History`)
+- **Tag search** — Filter and find tags across your image set quickly with JEI-style multi-token search
+- **Quick tag interaction** — Click directly on a tag to delete or insert
 - **Optimized image loading** — Reduced memory usage and faster display
 - **Multi-language support** — Interface available in multiple languages (i18n)
 - **Command-line argument** — Launch directly into a folder: `python main.py [path_folder]`
 - **Dictionary system** — Organize tags into named groups with virtual tag expansion
-- **Resort by groups** — Reorder tags in `.txt` files according to dictionary group order, with `NewLine` separator support for visual clarity in external editors
+- **Resort by groups** — Reorder tags in `.txt` files according to dictionary group order, with ~~`BREAK`~~ `NewLine` ~~separator support for Kohya training~~ for visual look extenal editor
 
 ---
 
@@ -45,7 +43,7 @@ pip install -r requirements.txt
 python3 main.py
 
 # Open directly into a specific folder
-python3 main.py /path/to/folder
+python3 main.py /path/to/folder_app
 ```
 
 ---
@@ -60,7 +58,7 @@ python3 main.py /path/to/folder
 | `Ctrl+Z` | Undo |
 | `Ctrl+Y` | Redo |
 | `Ctrl+E` / `F5` | Remove duplicate tags |
-| `Ctrl+R` / `F6` | Sort tags operations |
+| `Ctrl+R` / `F6` | Sort tags operations|
 | `Ctrl+T` / `F8` | Open WD14 Tagger |
 | `Ctrl+Shift+D` / `F9` | Open Dataset Calculator |
 
@@ -71,93 +69,77 @@ python3 main.py /path/to/folder
 ```
 TKtagger/
 │
-├── main.py                              # Entry point
-├── main_window.py                       # MainWindow (QMainWindow) — core UI
-├── settings_manager.py                  # Singleton settings via ConfigParser (settings.ini)
-├── settings.ini                         # User settings file (auto-generated)
+├── main.py                         # Entry point
+├── main_window.py                  # MainWindow (QMainWindow) — core UI
+├── settings_manager.py             # Singleton settings via ConfigParser (settings.ini)
+├── settings.ini                    # User settings file (auto-generated)
 │
-├── tag_panel.py                         # Right panel: tag list per folder
-├── image_grid.py                        # Image grid display, selection management
-├── file_ops.py                          # Load/save images & tags, build folder tree
-├── history_manager.py                   # Undo/Redo stack manager
-├── history_window.py                    # Action History UI panel
-├── dialogs.py                           # AboutDialog and misc dialogs
-├── i18n.py                              # Internationalization (tr(), set_language())
+├── tag_panel.py                    # Panel bên phải: danh sách tags theo thư mục
+├── image_grid.py                   # Grid hiển thị ảnh, selection management
+├── file_ops.py                     # Load/save images & tags, build folder tree
+├── history_manager.py              # Undo/Redo stack manager
+├── history_window.py               # UI panel hiển thị Action History
+├── dialogs.py                      # AboutDialog và các dialog nhỏ
+├── i18n.py                         # Internationalization (tr(), set_language())
 │
-├── defualt_dictbook.json                # Sample dictionary bundled with app
-├── requirements.txt                     # Python dependencies
+├── defualt_dictbook.json           # Dict mẫu đi kèm app
+├── requirements.txt                # Dependencies
 │
-├── lang/                                # Language files
-│   ├── en.json                          # English
-│   └── vi.json                          # Vietnamese
+├── lang/                           # Ngôn ngữ
+│   ├── en.json                     # English
+│   └── vi.json                     # Tiếng Việt
 │
-├── libs/                                # Reusable UI components
-│   └── draggable_list.py                # Draggable list widget with per-item delete
+├── libs/                           # Reusable UI components
+│   └── draggable_list.py           # Draggable list widget với per-item delete
 │
-├── tools/                               # Dataset processing tools
-│   ├── waifu_tagger_window.py           # WD14 Tagger — auto-tag via ONNX / API
-│   ├── tagger_logic.py                  # Inference logic (local + API mode)
-│   ├── calculator_dataset.py            # Dataset Calculator dialog
-│   ├── dict_tags.py                     # Dict Tags manager + VirtualTagEngine
-│   ├── remove_duplicate_tags.py         # Remove duplicate tags from .txt files
-│   ├── replace_tags.py                  # Replace tags dialog (bulk edit)
-│   └── resort_tag_window_operation.py   # Resort + Sort tags (merged from 2 files)
+├── tools/                          # Công cụ xử lý dataset
+│   ├── waifu_tagger_window.py      # WD14 Tagger — auto-tag ảnh bằng ONNX / API
+│   ├── tagger_logic.py             # Logic chạy inference (local + API mode)
+│   ├── calculator_dataset.py       # Dataset Calculator dialog
+│   ├── dict_tags.py                # Dict Tags manager + VirtualTagEngine
+│   ├── remove_duplicate_tags.py    # Xoá tag trùng trong .txt files
+│   ├── replace_tags.py             # Replace tags dialog (bulk edit)
+│   └── resort_tag_window_operation.py  # Resort + Sort tags (gộp từ 2 file cũ)
 │
-└── src/                                 # Assets
+└── src/                            # Assets
     ├── Qt_logo_2016.svg
-    └── Screenshot_*.png                 # Preview images for README
+    └── Screenshot_*.png            # Preview images cho README
 ```
 
 ---
 
-## Changelog — v1.4.1
+## Changelog (overview) 1.4.1
 
-### ✨ Added
+### ✨ Added: Tính năng phụ
+Auto-load Dict: Thiết lập đường dẫn sổ thẻ cố định tại menu Dict. App sẽ tự động load ngay khi khởi động qua settings.ini, không còn phải chọn thủ công mỗi lần mở máy.
 
-**Auto-load Dict**
-Set a fixed dictionary path via the Dict menu. The app will automatically load it on startup via `settings.ini` — no need to select it manually every session.
+Edit Menu mở rộng: Bổ sung các phím tắt tiêu chuẩn (Ctrl+A, D, I) và tính năng Nuke Selection (xóa sạch tag của ảnh đang chọn) để dọn dẹp dữ liệu nhanh.
 
-**Extended Edit Menu**
-Added standard shortcuts (`Ctrl+A`, `Ctrl+D`, `Ctrl+I`) and a new **Nuke Selection** action to wipe all tags from selected images in one click.
+### 🛠 Changes: Cấu trúc UX
+Reorganize Project: Quy hoạch lại toàn bộ mã nguồn. Các script lẻ được đưa vào thư mục /tools, gộp các logic sắp xếp tương đồng vào một file duy nhất để dễ quản lý.
 
-### 🛠 Changes
+Folder Workflow: Thay cơ chế lưu trữ session. Bạn có thể nhảy giữa nhiều folder mà không mất state (không bị hỏi save liên tục); lệnh Ctrl+S giờ đây sẽ ghi đè toàn bộ thay đổi của tất cả các folder đã mở trong session ra folder.
 
-**Project Reorganize**
-All loose scripts moved into `/tools`. Similar sorting logic merged into a single file for easier maintenance.
+INI Settings: Chuyển từ QSettings (Registry) sang file settings.ini nằm ngay cạnh app. Tiện cho việc backup hoặc di chuyển thư mục app mà không mất cấu hình.
 
-**Folder Session Workflow**
-New session cache model: switch between multiple folders freely without losing state. `Ctrl+S` now writes all changes from every folder opened in the current session at once — no repeated save prompts.
+Chuẩn hóa WD14 Tagger: Redesign lại cửa sổ tagger (thêm scrollbar, chỉnh size). Toàn bộ hệ thống nút bấm được áp dụng bộ mã màu chuẩn (_BTN_PRIMARY, _BTN_BROWSE),
 
-**INI Settings**
-Migrated from QSettings (OS registry/plist) to a plain `settings.ini` file next to the app. Easier to back up and portable when moving the app folder.
+Refactor Core: Loại bỏ biến self.lang thừa, gộp logic Resort Tags ra khỏi file main để code "sạch" hơn. Đồng nhất tiền tố i18n sang ldl_.
 
-**WD14 Tagger Redesign**
-Window resized and wrapped in a `QScrollArea`. All buttons now follow app-wide style constants (`_BTN_PRIMARY` green, `_BTN_BROWSE` dark) — consistent with the rest of the UI.
+### 🐛 Fixed: Xử lý các lỗi
 
-**Core Refactor**
-Removed redundant `self.lang` variable. Resort Tags logic extracted out of `main_window.py`. i18n keys standardized to `ldl_` prefix.
+Lịch sử (History): Đảo ngược thứ tự hiển thị để hành động mới nhất luôn nằm đúng vị trí. Quan trọng nhất: WD14 Tagger đã có History, lỗi không thể Undo sau khi auto-tag đã biến mất.
 
-### 🐛 Fixed
+UI Filter: Sửa lỗi Hidden Group vẫn hiển thị trên TagPanel và ResortTag dù đã đánh dấu ẩn.
 
-**History order reversed**
-Action History panel was displaying entries bottom-up. Fixed — newest action now always appears at the correct position.
-
-**WD14 Tagger had no History snapshot**
-Auto-tag operations could not be undone. Fixed — WD14 now correctly pushes snapshots to the history manager.
-
-**Hidden Groups still visible**
-Groups marked `"Hidden": true` in the dictionary were still rendered in TagPanel and ResortTag. Fixed.
-
-> Changelog summary written with AI assistance.
-
----
+**Note:** Chú ý: các thông tin này điều được AI viết tổng hợp qua.
 
 ## Roadmap
 
-- ✅ Basic tagger UI
-- ✅ Integrated WD14
-- ✅ Multiple language support
-- ✅ System dictionary tags
-- ✅ Redesigned UI
+1. ✅ Basic tagger UI
+2. ✅ Integrated WD14
+3. ✅ Multiple language support
+4. ✅ System dictionary tags
+5. ✅ Redesigned UI
 
-The core roadmap is complete. Future updates will focus on maintenance and bug fixes rather than major new features.
+sau khi đã hoàn thành Roadmap nhì các update về phía sau đã số sẽ không thay đổi nhiều, chuyện về bảo trì sửa lỗi

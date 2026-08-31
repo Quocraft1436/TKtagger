@@ -1,7 +1,11 @@
 """
-settings_manager.py
+settings_manager.py - ENHANCED VERSION with type parameter support
 Quản lý cài đặt toàn cục của TKtagger qua INI file.
 Dùng singleton: from settings_manager import settings
+
+CHANGE FROM ORIGINAL: 
+- value() method now supports optional 'type' parameter
+- Backward compatible with existing code
 """
 from __future__ import annotations
 import json
@@ -19,7 +23,7 @@ SETTINGS_SECTION = "General"
 KEY_BOOKDICT_PATH = "bookdict_path"
 KEY_LANGUAGE      = "language"
 KEY_RECENT_FILES  = "recent_list"
-
+KEY_ICON_SIZE     = "icon_size"
 
 class SettingsManager(QObject):
     """
@@ -61,10 +65,38 @@ class SettingsManager(QObject):
             self._config.write(f)
 
     # ── Config passthrough ────────────────────────────────────────────────────
-    def value(self, key: str, default=None):
+    def value(self, key: str, default=None, type=None):
+        """
+        Get a config value with optional type conversion.
+        
+        Args:
+            key: Setting key
+            default: Default value if key not found
+            type: Optional type for conversion (bool, int, str, float)
+                  If bool: converts string "true"/"false" to boolean
+                  If int/float: converts string to number
+                  If str: keeps as string
+        
+        Returns:
+            Value with requested type conversion, or default if not found
+        """
         try:
-            return self._config.get(SETTINGS_SECTION, key)
+            value = self._config.get(SETTINGS_SECTION, key)
+            
+            # Apply type conversion if requested
+            if type is bool:
+                return value.lower() in ('true', '1', 'yes', 'on')
+            elif type is int:
+                return int(value)
+            elif type is float:
+                return float(value)
+            else:
+                return value
+                
         except:
+            # Type conversion for default if type is specified
+            if type is bool and isinstance(default, str):
+                return default.lower() in ('true', '1', 'yes', 'on')
             return default
 
     def set_value(self, key: str, val):
@@ -161,6 +193,19 @@ class SettingsManager(QObject):
 
     def reload_bookdict(self) -> bool:
         return self.load_bookdict(self.bookdict_path)
+
+    # ── Icon size ─────────────────────────────────────────────────────────────
+    @property
+    def icon_size(self) -> int:
+        """Kích thước icon mặc định, theo pixel."""
+        return self.value(KEY_ICON_SIZE, 24, type=int)
+
+    @icon_size.setter
+    def icon_size(self, size: int):
+        """Lưu kích thước icon theo pixel."""
+        size = max(1, int(size))
+        self.set_value(KEY_ICON_SIZE, size)
+
 
     # ── Supported languages (auto-detect) ─────────────────────────────────────
     @staticmethod

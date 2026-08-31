@@ -16,7 +16,7 @@ def main():
 
     app = QApplication(sys.argv)
     app.setApplicationName("TKtagger")
-    app.setApplicationVersion("1.4.1")
+    app.setApplicationVersion("1.5.0")
 
     # Initialize settings and load language
     initial_lang = settings.language

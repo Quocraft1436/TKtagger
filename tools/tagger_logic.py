@@ -26,6 +26,7 @@ import os
 import re
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -120,8 +121,11 @@ def run_tagger(
         _cb(0, 0, "No images found.")
         return []
 
-    # 6. Prepare /tmp scratch dir for alpha conversion
-    tmp_dir = Path(tempfile.mkdtemp(prefix="tktagger_")) if config.get("alpha_to_white") else None
+    # 6. Prepare /tmp scratch dir — mọi ảnh cần tag đều được copy vào đây
+    #    trước khi đưa cho ONNX xử lý. File gốc (.txt lẫn ảnh) KHÔNG bị đụng
+    #    tới trong suốt quá trình chạy tagger; kết quả chỉ tồn tại trong
+    #    temp + RAM cho tới khi người dùng bấm Save.
+    tmp_dir = Path(tempfile.mkdtemp(prefix="tktagger_"))
 
     results = []
     try:
@@ -130,16 +134,31 @@ def run_tagger(
             _cb(idx, total, f"[{idx+1}/{total}] {img_path.name}")
 
             try:
-                # 6a. Flatten alpha if needed
-                work_path = _flatten_alpha(img_path, tmp_dir) if config.get("alpha_to_white") else img_path
+                out_path = _caption_path(img_path, config)          # đường dẫn .txt gốc (chỉ để đọc, không ghi)
+                write_mode = config.get("write_mode", "overwrite")
 
-                # 6b. Preprocess → numpy
+                # Bỏ qua nếu cấu hình "skip" và file caption gốc đã tồn tại/có nội dung
+                if write_mode == "skip" and out_path.exists():
+                    existing_text = out_path.read_text(encoding="utf-8").strip()
+                    if existing_text:
+                        # Đánh dấu skip để UI không load lại tốn RAM
+                        results.append({"path": str(img_path), "tags": [t.strip() for t in existing_text.split(",") if t.strip()], "skipped": True, "error": None})
+                        continue
+
+                # 6a. Copy ảnh (không copy .txt) vào temp folder trước khi xử lý
+                tmp_img_path = tmp_dir / img_path.name
+                shutil.copy2(img_path, tmp_img_path)
+
+                # 6b. Flatten alpha nếu cần — thao tác luôn trên bản copy trong temp
+                work_path = _flatten_alpha(tmp_img_path, tmp_dir) if config.get("alpha_to_white") else tmp_img_path
+
+                # 6c. Preprocess → numpy
                 img_tensor = _preprocess_image(work_path)
 
-                # 6c. Run inference
+                # 6d. Run inference (ONNX chỉ "nhìn thấy" ảnh trong temp folder)
                 probs = session.run(None, {input_name: img_tensor})[0][0]   # shape (num_tags,)
 
-                # 6d. Decode tags
+                # 6e. Decode tags
                 tags = _decode_tags(
                     probs        = probs,
                     tags_df      = tags_df,
@@ -149,17 +168,29 @@ def run_tagger(
                     config       = config,
                 )
 
-                # 6e. Write caption file
-                out_path = _caption_path(img_path, config)
-                _write_caption(out_path, tags, config)
+                # 6f. Ghi cặp .txt MỚI vào temp folder (không ghi vào folder thật).
+                #     Với write_mode="append", merge dựa trên nội dung .txt GỐC
+                #     hiện có (out_path) vì temp chưa từng có caption nào.
+                tmp_caption_path = tmp_dir / out_path.name
+                final_tags = _write_caption(
+                    tmp_caption_path, tags, config, merge_source=out_path
+                )
 
-                results.append({"path": str(img_path), "tags": tags, "skipped": False, "error": None})
+                # 6g. Đợi & xác nhận nội dung đã thực sự đổi trong temp folder,
+                #     rồi trích xuất lại thành cặp .txt mới từ đó.
+                final_tags = _read_back_tags_when_ready(tmp_caption_path, final_tags)
+
+                # 6h. Kết quả (path ảnh GỐC + tags mới) được trả về cho caller.
+                #     main_window sẽ lưu vào self.images[...] (RAM) và
+                #     push một HistoryEntry mới; Undo/Redo chỉ thao tác trên
+                #     RAM, file .txt gốc chỉ bị ghi khi người dùng bấm Save.
+                results.append({"path": str(img_path), "tags": final_tags, "skipped": False, "error": None})
 
             except Exception as exc:
                 results.append({"path": str(img_path), "tags": [], "skipped": True, "error": str(exc)})
 
     finally:
-        # Clean up /tmp scratch
+        # Dọn sạch toàn bộ temp scratch (ảnh copy + .txt tạm) sau khi xong batch
         if tmp_dir and tmp_dir.exists():
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -252,9 +283,24 @@ def run_tagger_api(
         )
 
         _cb(1, 1, f"Kohya_ss hoàn thành! Kết quả: {result}")
-        # kohya_ss trả về 1 phần tử (thường là chuỗi log).
-        # Caption files đã được ghi vào disk bởi server — không có list tags trả về.
-        return None
+        # kohya_ss writes caption files directly to disk on the server side.
+        # We now read back the .txt files so that main_window can:
+        #   (a) sync in-memory tags without a full folder reload
+        #   (b) push a proper undo/redo history entry
+        _cb(1, 1, "Đang đọc lại file caption từ disk để đồng bộ memory…")
+        image_paths = _collect_images(config)
+        ext = config.get("ext", ".txt")
+        results_api: list[dict] = []
+        for img_path in image_paths:
+            img_path = Path(img_path)
+            txt_path = img_path.with_suffix(ext)
+            if txt_path.exists():
+                text = txt_path.read_text(encoding="utf-8").strip()
+                tags = [t.strip() for t in text.split(",") if t.strip()]
+                results_api.append({"path": str(img_path), "tags": tags, "skipped": False, "error": None})
+            else:
+                results_api.append({"path": str(img_path), "tags": [], "skipped": True, "error": "caption file not found"})
+        return results_api
 
     except Exception as exc:
         _cb(0, 1, f"Lỗi khi gọi Kohya_ss API: {exc}")
@@ -504,24 +550,70 @@ def _caption_path(img_path: Path, config: dict) -> Path:
 
 
 def _write_caption(
-    out_path: Path,
-    tags:     list[str],
-    config:   dict,
-) -> None:
-    sep       = config.get("separator", ", ")
-    append    = config.get("append_tags", False)
+    out_path:     Path,
+    tags:         list[str],
+    config:       dict,
+    merge_source: Optional[Path] = None,
+) -> list[str]:
+    """Write caption file and return the final list of tags actually written.
 
-    if append and out_path.exists():
-        existing_text = out_path.read_text(encoding="utf-8").strip()
+    For append mode this is the merged (existing + new) list.
+    For overwrite/skip this is just `tags` as-is.
+    The return value lets callers keep in-memory tag state in sync with disk.
+
+    merge_source : file to read the *existing* tags from when write_mode is
+        "append". Defaults to out_path itself (old behaviour). Used by the
+        temp-folder workflow, where out_path lives in the scratch dir and has
+        no prior content, so the merge base must come from the real .txt
+        next to the original image instead.
+    """
+    sep       = config.get("separator", ", ")
+    write_mode = config.get("write_mode", "overwrite")
+    source     = merge_source if merge_source is not None else out_path
+
+    if write_mode == "append" and source.exists():
+        existing_text = source.read_text(encoding="utf-8").strip()
         existing_tags = [t.strip() for t in existing_text.split(",") if t.strip()]
         # merge: keep existing, append new ones that aren't already there
         existing_set = set(existing_tags)
         merged = existing_tags + [t for t in tags if t not in existing_set]
         content = sep.join(merged)
+        out_path.write_text(content, encoding="utf-8")
+        return merged
     else:
         content = sep.join(tags)
+        out_path.write_text(content, encoding="utf-8")
+        return tags
 
-    out_path.write_text(content, encoding="utf-8")
+
+def _read_back_tags_when_ready(
+    caption_path: Path,
+    expected_tags: list[str],
+    timeout: float = 2.0,
+    interval: float = 0.02,
+) -> list[str]:
+    """Chờ tới khi file caption trong temp folder thực sự đã ghi xong nội
+    dung, rồi đọc lại và trích xuất thành list tag mới.
+
+    Việc ghi file trong _write_caption() là đồng bộ nên trong đa số trường
+    hợp file đã sẵn sàng ngay lập tức; vòng lặp này chỉ để đảm bảo an toàn
+    trên các hệ thống file mạng/chậm trước khi trích xuất lại nội dung.
+    """
+    expected_content = ", ".join(expected_tags) if isinstance(expected_tags, list) else str(expected_tags)
+    deadline = time.monotonic() + timeout
+
+    while time.monotonic() < deadline:
+        if caption_path.exists() and caption_path.stat().st_size > 0:
+            break
+        time.sleep(interval)
+
+    if not caption_path.exists():
+        # Fallback: không đọc lại được từ temp, dùng thẳng giá trị đã tính
+        return expected_tags
+
+    text = caption_path.read_text(encoding="utf-8").strip()
+    sep = ","  # tag list luôn phân tách bằng dấu phẩy dù separator hiển thị có khác
+    return [t.strip() for t in text.split(sep) if t.strip()]
 
 
 # ──────────────────────────────────────────────────────────────

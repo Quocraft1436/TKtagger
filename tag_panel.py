@@ -6,8 +6,10 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QScrollArea, QFrame,
     QCheckBox, QSizePolicy, QComboBox,
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QIcon
+from table_icon import get_icon, get_icon_size
+
 from i18n import tr
 
 class TagPanel(QWidget):
@@ -45,16 +47,17 @@ class TagPanel(QWidget):
         # Action buttons
         btn_row = QHBoxLayout()
         btn_row.setSpacing(4)
-        self._deselect_btn = QPushButton()
-        self._deselect_btn.setIcon(QIcon.fromTheme("edit-select-none"))
-        self._deselect_btn.clicked.connect(self.deselect_all_filters)
+
         self._delete_btn = QPushButton()
-        self._delete_btn.setIcon(QIcon.fromTheme("list-remove"))
+        self._delete_btn.setIcon(get_icon("delete"))
+        self._delete_btn.setIconSize(get_icon_size())
         self._delete_btn.clicked.connect(self.delete_tags_requested)
+        
         self._replace_btn = QPushButton()
-        self._replace_btn.setIcon(QIcon.fromTheme("document-edit"))
+        self._replace_btn.setIcon(get_icon("replace"))
+        self._replace_btn.setIconSize(get_icon_size())
         self._replace_btn.clicked.connect(self.replace_tags_requested)
-        btn_row.addWidget(self._deselect_btn)
+
         btn_row.addWidget(self._delete_btn)
         btn_row.addWidget(self._replace_btn)
         layout.addLayout(btn_row)
@@ -73,6 +76,38 @@ class TagPanel(QWidget):
         gfr.addWidget(self._group_combo)
         layout.addWidget(self._group_filter_row)
         self._group_filter_row.setVisible(False)
+
+        # Selection range buttons
+        btn_sel_row = QHBoxLayout()
+        btn_sel_row.setSpacing(4)
+
+        # Bỏ chọn tất cả
+        self._deselect_btn = QPushButton()
+        self._deselect_btn.setIcon(get_icon("select_none"))
+        self._deselect_btn.setIconSize(get_icon_size())
+        # self._deselect_btn.setFixedSize(80, 80)
+        self._deselect_btn.clicked.connect(self.deselect_all_filters)
+
+        # Đảo chọn
+        self._sel_invert_btn = QPushButton()
+        self._sel_invert_btn.setIcon(get_icon("select_invert"))
+        self._sel_invert_btn.setIconSize(get_icon_size())
+        # self._sel_invert_btn.setFixedSize(80, 80)
+        self._sel_invert_btn.clicked.connect(self.select_invert_filters)
+
+        # Chọn tất cả
+        self._select_all_btn = QPushButton()
+        self._select_all_btn.setIcon(get_icon("select_all"))
+        self._select_all_btn.setIconSize(get_icon_size())
+        # self._select_all_btn.setFixedSize(80, 80)
+        self._select_all_btn.clicked.connect(self.select_all_filters)
+
+        btn_sel_row.addWidget(self._select_all_btn)
+        btn_sel_row.addWidget(self._sel_invert_btn)
+        btn_sel_row.addWidget(self._deselect_btn)
+
+        layout.addLayout(btn_sel_row)
+
 
         # Scroll area
         self.scroll_area = QScrollArea()
@@ -94,7 +129,11 @@ class TagPanel(QWidget):
         self._group_filter_lbl.setText(tr("group_label") + ":")
         if self._group_combo.count() > 0:
             self._group_combo.setItemText(0, tr("group_all"))
-        self._deselect_btn.setText(tr("deselect_filters_btn"))
+
+        self._deselect_btn.setToolTip(tr("ldl_deselect_all"))
+        self._select_all_btn.setToolTip(tr("ldl_select_all"))
+        self._sel_invert_btn.setToolTip(tr("ldl_invert_selection"))
+
         self._delete_btn.setText(tr("delete_tags_btn"))
         self._replace_btn.setText(tr("replace_tags_btn"))
         if self._all_tags:
@@ -134,9 +173,11 @@ class TagPanel(QWidget):
         lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         lbl.setCursor(Qt.PointingHandCursor)
         lbl.mousePressEvent = lambda e, t=tag: self.tag_insert_requested.emit(t)
-        insert_btn = QPushButton(tr("insert_btn_short"))
-        insert_btn.setFixedWidth(55)
-        insert_btn.setStyleSheet("background:#2196F3; color:white; font-size:9px; padding:2px;")
+        insert_btn = QPushButton()
+        insert_btn.setIcon(get_icon("add"))
+        insert_btn.setToolTip(tr("insert_tag_btn"))
+        # insert_btn.setFixedWidth(55)
+        # insert_btn.setStyleSheet("background:#2196F3; color:white; font-size:9px; padding:2px;")
         insert_btn.clicked.connect(lambda _, t=tag: self.tag_insert_requested.emit(t))
         row_layout.addWidget(cb)
         row_layout.addWidget(lbl)
@@ -186,6 +227,24 @@ class TagPanel(QWidget):
             row = self._make_tag_row(tag)
             self.tags_layout.insertWidget(self.tags_layout.count() - 1, row)
 
+    # ─── Helper Methods ───────────────────────────────────────────────────────
+
+    def _get_visible_tags(self) -> list:
+        """Trả về các tag đang hiển thị theo search + group filter."""
+        tokens = [
+            t.strip().lower()
+            for t in self.search_edit.text().split(",")
+            if t.strip()
+        ]
+        whitelist = self._get_group_whitelist()
+
+        return [
+            tag for tag in self._all_tags
+            if (whitelist is None or tag in whitelist)
+            and self._matches_jei(tag, tokens)
+        ]
+
+
     # ─── Signals ─────────────────────────────────────────────────────────────
     def _filter_display(self, text: str):
         self._rebuild_tag_list(text)
@@ -202,5 +261,38 @@ class TagPanel(QWidget):
             cb.blockSignals(False)
         self.filter_changed.emit({})
 
+    def select_invert_filters(self):
+        # Invert all filters in _tag_filters
+        for tag in list(self._tag_filters.keys()):
+            self._tag_filters[tag] = not self._tag_filters[tag]
+
+        # For tags not in _tag_filters yet, add them as True (inverted from False)
+        for tag in self._all_tags:
+            if tag not in self._tag_filters:
+                self._tag_filters[tag] = True
+
+        # Update checkboxes
+        for tag, cb in self._check_boxes.items():
+            cb.blockSignals(True)
+            cb.setChecked(self._tag_filters.get(tag, False))
+            cb.blockSignals(False)
+
+        self.filter_changed.emit(dict(self._tag_filters))
+
+    def select_all_filters(self):
+        visible_tags = self._get_visible_tags()
+
+        for tag in visible_tags:
+            self._tag_filters[tag] = True
+
+        for tag, cb in self._check_boxes.items():
+            cb.blockSignals(True)
+            cb.setChecked(self._tag_filters.get(tag, False))
+            cb.blockSignals(False)
+
+        self.filter_changed.emit(dict(self._tag_filters))
+
+
     def get_selected_filter_tags(self) -> list:
         return [t for t, v in self._tag_filters.items() if v]
+

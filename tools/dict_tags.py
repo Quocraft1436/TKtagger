@@ -89,6 +89,148 @@ class VirtualTagEngine:
         return tag_map
 
 # ─────────────────────────────────────────────────────────────────────────────
+class ImportNewTagsDialog(QWidget):
+    """
+    Cửa sổ import tag mới chưa có trong dict.
+    Hiển thị từng tag, cho chọn nhóm, bấm Process để thêm tất cả.
+    """
+    import_done = Signal()   # emit sau khi apply xong
+
+    def __init__(self, unknown_tags: list[str], json_data: dict, order: list[str], parent=None):
+        super().__init__(parent, Qt.Window)
+        self._unknown_tags = list(unknown_tags)   # copy, không mutate ngoài
+        self._json_data    = json_data
+        self._order        = order
+        self._assignments: dict[str, str] = {}    # tag → group name
+        self._build_ui()
+        self.setWindowTitle(tr("import_new_tags_title"))
+        self.resize(640, 520)
+
+    # ── Build UI ──────────────────────────────────────────────────────────────
+    def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setSpacing(6)
+
+        # Header info
+        self._lbl_count = QLabel()
+        self._lbl_count.setWordWrap(True)
+        root.addWidget(self._lbl_count)
+
+        root.addWidget(_divider())
+
+        # Scroll area chứa bảng tag ↔ group
+        from PySide6.QtWidgets import QScrollArea, QGridLayout
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        self._grid = QGridLayout(container)
+        self._grid.setContentsMargins(8, 8, 8, 8)
+        self._grid.setSpacing(6)
+        scroll.setWidget(container)
+        root.addWidget(scroll, stretch=1)
+
+        self._build_rows()
+
+        root.addWidget(_divider())
+
+        # Bottom bar
+        bot = QHBoxLayout()
+        self._lbl_hint = QLabel()
+        self._lbl_hint.setWordWrap(True)
+        self._lbl_hint.setStyleSheet("color: #888; font-size: 11px;")
+        bot.addWidget(self._lbl_hint, stretch=1)
+
+        self.btn_skip_all  = QPushButton()
+        self.btn_skip_all.clicked.connect(self._skip_all)
+        self.btn_process   = QPushButton()
+        self.btn_process.setStyleSheet("background:#4CAF50; color:white; font-weight:bold; padding:6px 16px;")
+        self.btn_process.clicked.connect(self._process)
+        bot.addWidget(self.btn_skip_all)
+        bot.addWidget(self.btn_process)
+        root.addLayout(bot)
+
+        self._retranslate()
+
+    def _group_names(self) -> list[str]:
+        """Trả về list tên nhóm theo order, bỏ BREAK."""
+        return [g for g in self._order if g != "BREAK" and g in self._json_data]
+
+    def _build_rows(self):
+        # Header row
+        from PySide6.QtWidgets import QGridLayout
+        hdr_tag   = QLabel(tr("import_col_tag"))
+        hdr_group = QLabel(tr("import_col_group"))
+        hdr_skip  = QLabel(tr("import_col_skip"))
+        for lbl in (hdr_tag, hdr_group, hdr_skip):
+            lbl.setStyleSheet("font-weight:bold;")
+        self._grid.addWidget(hdr_tag,   0, 0)
+        self._grid.addWidget(hdr_group, 0, 1)
+        self._grid.addWidget(hdr_skip,  0, 2)
+
+        self._combos:    list[QComboBox]  = []
+        self._skips:     list[QCheckBox]  = []
+
+        groups = self._group_names()
+
+        for i, tag in enumerate(self._unknown_tags):
+            row = i + 1
+
+            lbl = QLabel(tag)
+            lbl.setStyleSheet("font-family: monospace;")
+            self._grid.addWidget(lbl, row, 0)
+
+            cmb = QComboBox()
+            cmb.addItems(groups)
+            self._grid.addWidget(cmb, row, 1)
+            self._combos.append(cmb)
+
+            chk = QCheckBox()
+            chk.setToolTip(tr("import_skip_tooltip"))
+            # khi tick skip → disable combo
+            idx = i  # capture
+            chk.stateChanged.connect(lambda state, c=cmb: c.setEnabled(state != Qt.Checked.value and state != Qt.Checked))
+            self._grid.addWidget(chk, row, 2)
+            self._skips.append(chk)
+
+    # ── Actions ───────────────────────────────────────────────────────────────
+    def _skip_all(self):
+        for chk in self._skips:
+            chk.setChecked(True)
+
+    def _process(self):
+        added = 0
+        for i, tag in enumerate(self._unknown_tags):
+            if self._skips[i].isChecked():
+                continue
+            gname = self._combos[i].currentText()
+            if not gname or gname not in self._json_data:
+                continue
+            tags_raw = self._json_data[gname].get("Tags", self._json_data[gname].get("tags", {}))
+            if tag not in tags_raw:
+                if isinstance(tags_raw, dict):
+                    tags_raw[tag] = {}
+                else:
+                    tags_raw.append(tag)
+                added += 1
+
+        QMessageBox.information(
+            self,
+            tr("import_done_title"),
+            tr("import_done_msg", count=added),
+        )
+        self.import_done.emit()
+        self.close()
+
+    def _retranslate(self):
+        self.setWindowTitle(tr("import_new_tags_title"))
+        n = len(self._unknown_tags)
+        self._lbl_count.setText(tr("import_count_msg", count=n))
+        self._lbl_hint.setText(tr("import_hint"))
+        self.btn_skip_all.setText(tr("import_btn_skip_all"))
+        self.btn_process.setText(tr("import_btn_process"))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 class DictTagsWidget(QWidget):
     data_changed = Signal(dict, list)
 
@@ -98,6 +240,8 @@ class DictTagsWidget(QWidget):
         self.json_data: dict   = json_data or {}
         self.order: list[str]  = order or []
         self.current_path: str = current_path
+        self._unknown_tags: list[str] = []        # tags chưa có trong dict
+        self._import_dialog: ImportNewTagsDialog | None = None
         self._build_ui()
         self._refresh_all()
         self._update_title()
@@ -210,6 +354,14 @@ class DictTagsWidget(QWidget):
         brow = QHBoxLayout()
         self.btn_expand   = QPushButton()
         self.btn_collapse = QPushButton()
+        self.btn_import_new = QPushButton()
+        self.btn_import_new.setIcon(QIcon.fromTheme("list-add"))
+        self.btn_import_new.setEnabled(False)   # gray out cho đến khi có unknown tags
+        self.btn_import_new.clicked.connect(self._open_import_dialog)
+        self.btn_export_new = QPushButton()
+        self.btn_export_new.setIcon(QIcon.fromTheme("document-save-as"))
+        self.btn_export_new.setEnabled(False)   # gray out cho đến khi có unknown tags
+        self.btn_export_new.clicked.connect(self._export_unknown_tags)
         self.btn_save     = QPushButton()
         
         self.btn_expand.clicked.connect(self.tree.expandAll)
@@ -223,6 +375,8 @@ class DictTagsWidget(QWidget):
         brow.addWidget(self.btn_expand)
         brow.addWidget(self.btn_collapse)
         brow.addStretch()
+        brow.addWidget(self.btn_import_new)
+        brow.addWidget(self.btn_export_new)
         brow.addWidget(self.btn_save)
         right_v.addLayout(brow)
 
@@ -261,11 +415,14 @@ class DictTagsWidget(QWidget):
         self.btn_remove.setText(tr("ldl_remove_tag"))
         self.btn_expand.setText(tr("dict_btn_expand"))
         self.btn_collapse.setText(tr("dict_btn_collapse"))
+        self.btn_import_new.setText(tr("dict_btn_import_new"))
+        self.btn_export_new.setText(tr("dict_btn_export_new"))
         self.btn_save.setText(tr("ldl_save"))
 
         # Tree headers
         self.tree.setHeaderLabels([
             tr("dict_tree_col_name"),
+            tr("dict_tree_desc"),
             tr("dict_tree_col_hidden"),
             tr("dict_tree_col_count"),
         ])
@@ -345,7 +502,7 @@ class DictTagsWidget(QWidget):
             if filter_text and not visible_tags: continue
 
             hidden_mark = "●" if hidden else ""
-            group_item = QTreeWidgetItem([f"{emoji} {gname}", hidden_mark, str(len(tag_items))])
+            group_item = QTreeWidgetItem([f"{emoji} {gname}", "", hidden_mark, str(len(tag_items))])
             group_item.setData(0, Qt.UserRole, ("group", gname))
             if hidden:
                 group_item.setForeground(0, Qt.darkCyan)
@@ -353,9 +510,12 @@ class DictTagsWidget(QWidget):
             for tag, tdata in visible_tags:
                 is_v = engine.is_virtual(tag)
                 desc = tdata.get("description", "") if isinstance(tdata, dict) else ""
-                display = f"{'⚡' if is_v else '🏷'} {tag}" + (f" — {desc[:40]}" if desc else "")
-                tag_item = QTreeWidgetItem([display, "", ""])
+
+                display = f"{'⚡' if is_v else '🏷'} {tag}"
+                tag_item = QTreeWidgetItem([display, desc, "", ""])
                 tag_item.setData(0, Qt.UserRole, ("tag", gname, tag))
+                tag_item.setData(0, Qt.UserRole + 1, desc)
+
                 if is_v:
                     tag_item.setForeground(0, Qt.blue)
                 group_item.addChild(tag_item)
@@ -437,6 +597,84 @@ class DictTagsWidget(QWidget):
                     tags.remove(data[2])
                 self._refresh_tree()
                 self._autosave()
+
+    def set_unknown_tags(self, tags: list[str]):
+        """
+        Nhận list tag chưa có trong dict (do main_window tính).
+        Enable/disable nút import/export tương ứng.
+        """
+        self._unknown_tags = [t for t in tags if t]
+        has_new = bool(self._unknown_tags)
+        self.btn_import_new.setEnabled(has_new)
+        self.btn_export_new.setEnabled(has_new)
+        tooltip = (
+            tr("import_btn_tooltip_count", count=len(self._unknown_tags))
+            if has_new
+            else tr("import_btn_tooltip_none")
+        )
+        self.btn_import_new.setToolTip(tooltip)
+        self.btn_export_new.setToolTip(
+            tr("export_btn_tooltip_count", count=len(self._unknown_tags))
+            if has_new
+            else tr("export_btn_tooltip_none")
+        )
+
+    def _open_import_dialog(self):
+        if not self._unknown_tags:
+            return
+        # Đóng dialog cũ nếu còn mở
+        if self._import_dialog and self._import_dialog.isVisible():
+            self._import_dialog.raise_()
+            self._import_dialog.activateWindow()
+            return
+
+        self._import_dialog = ImportNewTagsDialog(
+            unknown_tags=self._unknown_tags,
+            json_data=self.json_data,
+            order=self.order,
+            parent=self,
+        )
+        self._import_dialog.import_done.connect(self._on_import_done)
+        self._import_dialog.show()
+        self._import_dialog.raise_()
+
+    def _on_import_done(self):
+        """Sau khi import xong: autosave, refresh tree, xóa danh sách unknown."""
+        self._autosave()
+        self._refresh_all()
+        self.set_unknown_tags([])   # clear → gray out nút
+
+    def _export_unknown_tags(self):
+        """Xuất danh sách tag mới chưa có trong dict (đã sắp xếp) ra file JSON."""
+        if not self._unknown_tags:
+            return
+
+        sorted_tags = sorted(set(self._unknown_tags), key=str.lower)
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            tr("dict_dialog_export_new"),
+            "new_tags.json",
+            "JSON (*.json)",
+        )
+        if not path:
+            return
+
+        export_data = {
+            "count": len(sorted_tags),
+            "tags": sorted_tags,
+        }
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(export_data, f, indent=2, ensure_ascii=False)
+        except OSError as exc:
+            QMessageBox.warning(self, tr("dict_export_fail_title"), tr("dict_export_fail_msg", error=str(exc)))
+            return
+
+        QMessageBox.information(
+            self, tr("dict_export_ok_title"),
+            tr("dict_export_ok_msg", count=len(sorted_tags), path=path),
+        )
 
     def _save_json(self):
         if self.current_path:

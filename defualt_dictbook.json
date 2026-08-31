@@ -1,114 +1,525 @@
 {
   "order": [
-    "Character",
+    "Trigger Custom",
+    "Character Trigger",
+    "Character Feature",
+    "People",
     "Body & Face",
+    "Emotion",
     "Hair",
     "Outfit",
+    "Pattern & Printing",
+    "Outfit Upper",
+    "Outfit Lower",
+    "Head Wear",
     "Accessories",
     "Pose & Framing",
+    "Perspective & Composition",
+    "Object",
+    "Animal",
+    "Vehicle",
+    "Scene",
     "Background",
+    "Weather",
+    "Visual Effects & Lighting",
+    "Other",
     "Color",
-    "Length"
+    "Length",
+    "Dimension"
   ],
-  "Character": {
-    "emoji": "👤",
-    "Hidden": false,
-    "Tags": {
-      "1girl": {},
-      "solo": {},
-      "h1me": {}
-    }
-  },
-  "Body & Face": {
-    "emoji": "✨",
-    "Hidden": false,
-    "Tags": {
-      "${Color}_eyes": {},
-      "blush": {},
-      "closed mouth": {},
-      "looking at viewer": {}
-    }
-  },
-  "Hair": {
-    "emoji": "💇",
-    "Hidden": false,
-    "Tags": {
-      "${Color}_hair": {},
-      "twintails": {},
-      "${Length}_twintails": {},
-      "hair between eyes": {}
-    }
-  },
-  "Outfit": {
-    "emoji": "👗",
-    "Hidden": false,
-    "Tags": {
-      "outfit_casual": {},
-      "${Color}_dress": {},
-      "${Length}_twintails": {},
-      "off shoulder": {},
-      "${Color} straps shoulder": {},
-      "frilled skirt": {},
-      "layered skirt": {},
-      "${Color}_skirt": {},
-      "${Color}_thighhighs": {},
-      "scallop-top": {},
-      "scallop-top thigh-high socks": {}
-    }
-  },
   "Accessories": {
-    "emoji": "🎀",
     "Hidden": false,
     "Tags": {
       "${Color}_bow": {},
+      "armlet": {},
+      "belt": {},
       "bow on twintail": {},
-      "ribbon": {},
-      "simple crown king": {},
-      "tilted headwear": {},
+      "bracelet": {},
       "choker": {},
-      "armlet": {}
-    }
+      "earrings": {},
+      "floating scarf": {},
+      "gloves": {},
+      "jewelry": {},
+      "mizuhiki on snake": {},
+      "red_scarf": {},
+      "ribbon": {},
+      "scarf": {},
+      "towel_around_neck": {},
+      "white scarf": {},
+      "yellow necklace": {}
+    },
+    "emoji": "🎀"
   },
-  "Pose & Framing": {
-    "emoji": "📸",
+  "Animal": {
     "Hidden": false,
     "Tags": {
-      "standing": {},
-      "hand on own chest": {},
-      "clenched hand": {},
-      "knee shot": {}
-    }
+      "animal snake": {},
+      "cat": {},
+      "dog": {},
+      "pig": {},
+      "snake": {},
+      "white_snake": {}
+    },
+    "emoji": "🐾"
   },
   "Background": {
-    "emoji": "🖼️",
     "Hidden": false,
     "Tags": {
       "${Color} background": {},
-      "simple background": {}
-    }
+      "black background": {},
+      "blurry background": {},
+      "blurry_background": {},
+      "heart_background": {},
+      "simple background": {},
+      "simple_background": {},
+      "transparent_background": {},
+      "two-tone background": {},
+      "white background": {},
+      "white_background": {},
+      "yellow_background": {}
+    },
+    "emoji": "🖼️"
+  },
+  "Body & Face": {
+    "Hidden": false,
+    "Tags": {
+      "armless": {},
+      "blush": {},
+      "breasts": {},
+      "closed mouth": {},
+      "closed_mouth": {},
+      "collarbone": {},
+      "long legs": {},
+      "midriff": {},
+      "navel": {},
+      "open_mouth": {},
+      "short": {},
+      "short eyebrows": {},
+      "teeth": {},
+      "thick eyebrows": {},
+      "tongue": {},
+      "tongue_out": {},
+      "upper_teeth_only": {}
+    },
+    "emoji": "✨"
+  },
+  "Character Feature": {
+    "Hidden": false,
+    "Tags": {
+      "${Color}_eyes": {},
+      "animal_ear_fluff": {},
+      "animal_ears": {},
+      "animal_hands": {},
+      "catgirl": {},
+      "claws": {},
+      "fang": {},
+      "fang_out": {},
+      "fangs": {},
+      "horns": {},
+      "horse_ears": {},
+      "horse_girl": {},
+      "orange_eyes": {},
+      "rabbit_ears": {},
+      "rabbit_girl": {},
+      "rabbit_tail": {},
+      "sharp_teeth": {},
+      "tail": {},
+      "tiger_ears": {},
+      "tiger_girl": {},
+      "tiger_tail": {},
+      "virtual_youtuber": {}
+    },
+    "emoji": "👤"
+  },
+  "Character Trigger": {
+    "Hidden": false,
+    "Tags": {
+      "Y4n": {},
+      "Zh3n": {},
+      "h1me": {},
+      "luo_xiaohei": {},
+      "souryuu_asuka_langley": {},
+      "theresa_apocalypse": {},
+      "unryuu_(kancolle)": {},
+      "Luon": {
+        "description": "from Shio cafe"
+      }
+    },
+    "emoji": "🔑"
   },
   "Color": {
-    "emoji": "🎨",
     "Hidden": true,
     "Tags": {
-      "red": {},
+      "black": {},
+      "blonde": {},
       "blue": {},
       "green": {},
-      "black": {},
-      "white": {},
-      "blonde": {},
       "pink": {},
       "purple": {},
+      "red": {},
+      "white": {},
       "yellow": {}
-    }
+    },
+    "emoji": "🎨"
+  },
+  "Dimension": {
+    "Hidden": true,
+    "Tags": {
+      "big": {},
+      "gigantic": {},
+      "huge": {},
+      "very big": {}
+    },
+    "emoji": "📐"
+  },
+  "Emotion": {
+    "Hidden": false,
+    "Tags": {
+      "!?": {},
+      ":d": {},
+      ":o": {},
+      ";d": {},
+      ";p": {},
+      ">_<": {},
+      "angry": {},
+      "closed_eyes": {},
+      "embarrassed": {},
+      "frown": {},
+      "heart-shaped_eyes": {},
+      "heart-shaped_pupils": {},
+      "looking at viewer": {},
+      "looking_at_viewer": {},
+      "o_o": {},
+      "one_eye_closed": {},
+      "sad": {},
+      "shy": {},
+      "smile": {},
+      "sweatdrop": {},
+      "symbol-shaped_pupils": {},
+      "tearing_up": {},
+      "tears": {},
+      "v-shaped_eyebrows": {}
+    },
+    "emoji": "😊"
+  },
+  "Hair": {
+    "Hidden": false,
+    "Tags": {
+      "${Color}_hair": {},
+      "${Length}_twintails": {},
+      "afro": {},
+      "ahoge": {},
+      "asymmetrical_hair": {},
+      "brown_hair": {},
+      "green hair tie": {},
+      "hair between eyes": {},
+      "hair_between_eyes": {},
+      "hair_flower": {},
+      "hair_ornament": {},
+      "hair_over_one_eye": {},
+      "hairclip": {},
+      "long_hair": {},
+      "low-tied_long_hair": {},
+      "low_ponytail": {},
+      "messy hair": {},
+      "messy_hair": {},
+      "multicolored_hair": {},
+      "orange_hair": {},
+      "ponytail": {},
+      "short hair": {},
+      "short_hair": {},
+      "single_braid": {},
+      "streaked_hair": {},
+      "twintails": {},
+      "very_long_hair": {},
+      "wavy_hair": {},
+      "white hair": {}
+    },
+    "emoji": "💇"
+  },
+  "Head Wear": {
+    "Hidden": false,
+    "Tags": {
+      "glasses": {},
+      "heart-shaped_eyewear": {},
+      "opaque_glasses": {},
+      "scrunchie": {},
+      "simple crown king": {},
+      "sleep mask": {},
+      "sunglasses": {},
+      "tilted headwear": {}
+    },
+    "emoji": "🎩"
   },
   "Length": {
-    "emoji": "📏",
     "Hidden": true,
     "Tags": {
       "long": {},
       "very long": {},
       "very short": {}
-    }
+    },
+    "emoji": "📏"
+  },
+  "Object": {
+    "Hidden": false,
+    "Tags": {
+      "bag": {},
+      "banana": {},
+      "can": {},
+      "cellphone": {},
+      "corn": {},
+      "curry": {},
+      "curry_rice": {},
+      "dagger": {},
+      "egg": {},
+      "flower": {},
+      "food": {},
+      "frying_pan": {},
+      "gourd": {},
+      "knife": {},
+      "microphone": {},
+      "paper": {},
+      "phone": {},
+      "pink_flower": {},
+      "plate": {},
+      "rice": {},
+      "shopping_bag": {},
+      "sign": {},
+      "smartphone": {},
+      "stove": {},
+      "towel": {},
+      "weapon": {}
+    },
+    "emoji": "📦"
+  },
+  "Other": {
+    "Hidden": false,
+    "Tags": {
+      "comic": {},
+      "english_text": {},
+      "meme": {},
+      "parody": {},
+      "silent_comic": {},
+      "speech_bubble": {},
+      "thought_bubble": {}
+    },
+    "emoji": "❓"
+  },
+  "Outfit": {
+    "Hidden": false,
+    "Tags": {
+      "alternate_costume": {},
+      "blue kimono": {},
+      "blue_robe": {},
+      "chinese_clothes": {},
+      "dress": {},
+      "japanese clothes": {},
+      "japanese_clothes": {},
+      "kimono": {},
+      "layered clothes": {},
+      "open_clothes": {},
+      "outfit_casual": {},
+      "swimsuit": {},
+      "white kimono": {}
+    },
+    "emoji": "👗"
+  },
+  "Outfit Lower": {
+    "Hidden": false,
+    "Tags": {
+      "${Color}_skirt": {},
+      "${Color}_thighhighs": {},
+      "black_pants": {},
+      "black_shorts": {},
+      "boots": {},
+      "brown_footwear": {},
+      "dark blue pants": {},
+      "frilled skirt": {},
+      "geta": {},
+      "layered skirt": {},
+      "panties": {},
+      "pants": {},
+      "pink_footwear": {},
+      "sandals": {},
+      "scallop-top": {},
+      "scallop-top thigh-high socks": {},
+      "shorts": {},
+      "skirt": {},
+      "tabi": {},
+      "thighhighs": {}
+    },
+    "emoji": "👖"
+  },
+  "Outfit Upper": {
+    "Hidden": false,
+    "Tags": {
+      "${Color} straps shoulder": {},
+      "apron": {},
+      "black_jacket": {},
+      "black_shirt": {},
+      "blue_jacket": {},
+      "bra": {},
+      "buttons": {},
+      "crop_top": {},
+      "cropped_jacket": {},
+      "green_jacket": {},
+      "jacket": {},
+      "long sleeves": {},
+      "long_sleeves": {},
+      "off shoulder": {},
+      "open_jacket": {},
+      "pink_shirt": {},
+      "shirt": {},
+      "short_sleeves": {},
+      "t-shirt": {},
+      "tank top": {},
+      "vest": {},
+      "wide sleeve": {},
+      "wide_sleeves": {},
+      "yellow_apron": {}
+    },
+    "emoji": "👕"
+  },
+  "Pattern & Printing": {
+    "Hidden": false,
+    "Tags": {
+      "animal_print": {},
+      "diamond shaped": {},
+      "pattern (on kimono hem)": {},
+      "polka dot": {},
+      "tiger_print": {}
+    },
+    "emoji": "🔳"
+  },
+  "People": {
+    "Hidden": false,
+    "Tags": {
+      "1boy": {},
+      "1girl": {},
+      "2boys": {},
+      "2girls": {},
+      "male_focus": {},
+      "multiple_boys": {},
+      "multiple_girls": {},
+      "solo": {},
+      "solo_focus": {}
+    },
+    "emoji": "🧑‍🤝‍🧑"
+  },
+  "Perspective & Composition": {
+    "Hidden": false,
+    "Tags": {
+      "close-up": {},
+      "cowboy shot": {},
+      "cowboy_shot": {},
+      "dutch angle": {},
+      "facing_away": {},
+      "from above": {},
+      "from below": {},
+      "from_behind": {},
+      "from_side": {},
+      "full body": {},
+      "full_body": {},
+      "head_out_of_frame": {},
+      "letterboxed": {},
+      "pov": {},
+      "profile": {},
+      "upper body": {},
+      "upper_body": {}
+    },
+    "emoji": "🎬"
+  },
+  "Pose & Framing": {
+    "Hidden": false,
+    "Tags": {
+      "animal_on_shoulder": {},
+      "arm_behind_head": {},
+      "clenched hand": {},
+      "cooking": {},
+      "crossed_legs": {},
+      "hand on own chest": {},
+      "hand_on_another's_shoulder": {},
+      "hand_on_own_hip": {},
+      "hands_on_own_hips": {},
+      "holding": {},
+      "holding paper": {},
+      "holding_frying_pan": {},
+      "holding_hands": {},
+      "holding_knife": {},
+      "holding_microphone": {},
+      "holding_paper": {},
+      "holding_phone": {},
+      "holding_weapon": {},
+      "index_finger_raised": {},
+      "knee shot": {},
+      "lean forward": {},
+      "looking_back": {},
+      "outstretched_arms": {},
+      "own_hands_together": {},
+      "pointing": {},
+      "sit": {},
+      "sitting": {},
+      "standing": {},
+      "white snake on shoulder": {}
+    },
+    "emoji": "📸"
+  },
+  "Scene": {
+    "Hidden": false,
+    "Tags": {
+      "great wall": {},
+      "indoors": {},
+      "kitchen": {},
+      "ocean": {},
+      "outdoors": {},
+      "sea": {},
+      "tokyo": {}
+    },
+    "emoji": "🏙️"
+  },
+  "Trigger Custom": {
+    "Hidden": false,
+    "Tags": {},
+    "emoji": "🔧"
+  },
+  "Vehicle": {
+    "Hidden": false,
+    "Tags": {
+      "car": {},
+      "motorcycle": {},
+      "traffic light": {}
+    },
+    "emoji": "🚗"
+  },
+  "Visual Effects & Lighting": {
+    "Hidden": false,
+    "Tags": {
+      "backlighting": {},
+      "bloom": {},
+      "blurry": {},
+      "border": {},
+      "cinematic lighting": {},
+      "depth of field": {},
+      "eighth_note": {},
+      "emphasis_lines": {},
+      "fire": {},
+      "heart": {},
+      "musical_note": {},
+      "petals": {},
+      "rim light": {},
+      "smoke": {},
+      "soft lighting": {},
+      "sparkle": {}
+    },
+    "emoji": "💡"
+  },
+  "Weather": {
+    "Hidden": false,
+    "Tags": {
+      "raining": {},
+      "sunny": {},
+      "sunset": {}
+    },
+    "emoji": "☁️"
   }
 }
