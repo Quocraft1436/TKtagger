@@ -137,10 +137,6 @@ dict_tags, resort_tag_window_operation).
 tag panel) now refreshes before the "complete" notification dialog appears,
 preventing the UI from lagging behind the notification.
 
-### Known gaps (incomplete relative to TODO list)
-- Resort Tag window: the search bar currently only has a "Deselect All" button;
-it lacks the "Select All" and "Invert Selection" buttons found in the main tag panel.
-
 **Note:** Please note that this information was summarized and written by AI. ## Roadmap
 
 1. ✅ Basic tagger UI
