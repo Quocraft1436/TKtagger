@@ -1,22 +1,15 @@
-"""
-settings_manager.py - ENHANCED VERSION with type parameter support
-Quản lý cài đặt toàn cục của TKtagger qua INI file.
-Dùng singleton: from settings_manager import settings
-
-CHANGE FROM ORIGINAL: 
-- value() method now supports optional 'type' parameter
-- Backward compatible with existing code
-"""
+"""Shared application settings backed by QSettings."""
 from __future__ import annotations
 import json
 import locale
 from pathlib import Path
-from configparser import ConfigParser
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QSettings, Signal
+from app_paths import user_file
+from i18n import normalize_language
 
 # ── Settings file path ───────────────────────────────────────────────────────
-SETTINGS_FILE = Path(__file__).parent / "settings.ini"
+SETTINGS_FILE = user_file("settings.ini")
 SETTINGS_SECTION = "General"
 
 # ── keys ─────────────────────────────────────────────────────────────────────
@@ -27,7 +20,7 @@ KEY_ICON_SIZE     = "icon_size"
 
 class SettingsManager(QObject):
     """
-    Singleton wrapper quanh ConfigParser (INI file).
+    Singleton wrapper quanh QSettings (INI file).
     Phát signal bookdict_changed(dict) khi path bookdict thay đổi / reload.
     Phát signal language_changed(str) khi ngôn ngữ thay đổi.
     """
@@ -47,61 +40,32 @@ class SettingsManager(QObject):
             return
         super().__init__()
         self._init_done = True
-        self._config = ConfigParser()
-        self._load_config()
+        self._settings = QSettings(str(SETTINGS_FILE), QSettings.IniFormat)
         self._bookdict_data: dict = {}
         self._bookdict_order: list = []
 
-    def _load_config(self):
-        """Load INI file. Create if not exists."""
-        if SETTINGS_FILE.exists():
-            self._config.read(SETTINGS_FILE, encoding="utf-8")
-        if not self._config.has_section(SETTINGS_SECTION):
-            self._config.add_section(SETTINGS_SECTION)
-
-    def _save_config(self):
-        """Save config to INI file."""
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            self._config.write(f)
-
     # ── Config passthrough ────────────────────────────────────────────────────
     def value(self, key: str, default=None, type=None):
-        """
-        Get a config value with optional type conversion.
-        
-        Args:
-            key: Setting key
-            default: Default value if key not found
-            type: Optional type for conversion (bool, int, str, float)
-                  If bool: converts string "true"/"false" to boolean
-                  If int/float: converts string to number
-                  If str: keeps as string
-        
-        Returns:
-            Value with requested type conversion, or default if not found
-        """
+        """Read current settings, preserving the existing conversion defaults."""
+        self._settings.sync()
+        value = self._settings.value(key, default)
         try:
-            value = self._config.get(SETTINGS_SECTION, key)
-            
-            # Apply type conversion if requested
             if type is bool:
-                return value.lower() in ('true', '1', 'yes', 'on')
-            elif type is int:
-                return int(value)
-            elif type is float:
-                return float(value)
-            else:
-                return value
-                
-        except:
-            # Type conversion for default if type is specified
-            if type is bool and isinstance(default, str):
-                return default.lower() in ('true', '1', 'yes', 'on')
+                if isinstance(value, str):
+                    return value.lower() in ('true', '1', 'yes', 'on')
+                return bool(value)
+            if type is list:
+                if value is None:
+                    return []
+                return value if isinstance(value, list) else [value]
+            return type(value) if type is not None else value
+        except (TypeError, ValueError):
             return default
 
     def set_value(self, key: str, val):
-        self._config.set(SETTINGS_SECTION, key, str(val))
-        self._save_config()
+        """Persist only this key; QSettings merges other writers' changes."""
+        self._settings.setValue(key, val)
+        self._settings.sync()
 
     # ── Language ──────────────────────────────────────────────────────────────
     def get_language(self) -> str:
@@ -111,7 +75,7 @@ class SettingsManager(QObject):
         """
         saved = self.value(KEY_LANGUAGE, None)
         if saved:
-            return saved
+            return normalize_language(saved)
         
         # Try to detect system locale
         system_lang = self._detect_system_language()
@@ -140,6 +104,7 @@ class SettingsManager(QObject):
     @language.setter
     def language(self, lang: str):
         """Set language and emit signal."""
+        lang = normalize_language(lang)
         old_lang = self.get_language()
         self.set_value(KEY_LANGUAGE, lang)
         if lang != old_lang:
@@ -226,8 +191,9 @@ class SettingsManager(QObject):
             "fr": "Français",
             "de": "Deutsch",
             "ja": "日本語",
-            "zh": "中文",
+            "zh": "简体中文",
             "ko": "한국어",
+            "ru": "Русский",
         }
         
         if lang_dir.exists():
@@ -244,19 +210,20 @@ class SettingsManager(QObject):
 
     # ── Recent files ──────────────────────────────────────────────────────────
     def get_recent_files(self) -> list[str]:
-        raw = self.value(KEY_RECENT_FILES, "")
+        raw = self.value(KEY_RECENT_FILES, [])
         if not raw:
             return []
-        # Parse comma-separated list
-        return [r.strip() for r in raw.split(",") if Path(r.strip()).exists()]
+        # Accept legacy strings as well as native QSettings lists.
+        if isinstance(raw, str):
+            raw = [r.strip() for r in raw.split(",")]
+        return [r for r in raw if Path(r).exists()]
 
     def add_recent_file(self, path: str, max_items: int = 10):
         recents = self.get_recent_files()
         if path in recents:
             recents.remove(path)
         recents.insert(0, path)
-        # Save as comma-separated list
-        self.set_value(KEY_RECENT_FILES, ", ".join(recents[:max_items]))
+        self.set_value(KEY_RECENT_FILES, recents[:max_items])
 
 
 # ── Singleton instance (import này để dùng) ─────────────────────────────────

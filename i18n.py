@@ -183,10 +183,17 @@ def _load():
     _STRINGS = _load_language(_LANG)
 
 
+def normalize_language(lang: str) -> str:
+    """Accept locale forms and the common JP alias for Japanese (ja)."""
+    code = lang.strip().lower().replace('-', '_').split('_')[0]
+    return 'ja' if code == 'jp' else code
+
+
 def set_language(lang: str):
     """Switch active language."""
     global _LANG, _STRINGS
 
+    lang = normalize_language(lang)
     _load_language(lang)
 
     _LANG = lang

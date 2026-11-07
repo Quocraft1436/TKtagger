@@ -3,6 +3,7 @@ main_window.py - Cửa sổ chính của ứng dụng TKtagger (PySide6)
 """
 import os
 import json
+from collections import Counter
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -12,12 +13,14 @@ from PySide6.QtWidgets import (
     QFileDialog, QSpinBox, QStatusBar, QToolBar, QInputDialog,
     QComboBox,
 )
-from PySide6.QtCore import Qt, QSettings, Signal
+from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QAction, QKeySequence, QShortcut, QIcon
 
 from history_manager import HistoryManager
 from history_window import HistoryWindow
 from file_ops import load_folder_images, save_all_images
+from backup_manager import BACKUP_DIR
+from folder_loader import FolderLoader
 from image_grid import ImageGrid
 from tag_panel import TagPanel
 from dialogs import AboutDialog
@@ -39,6 +42,8 @@ from table_icon import get_icon, get_icon_size
 class MainWindow(QMainWindow):
 
     tagging_completed = Signal(list)
+    tagging_progress = Signal(str)
+    tagging_failed = Signal(str)
 
     def __init__(self, initial_path=None):
         super().__init__()
@@ -72,13 +77,18 @@ class MainWindow(QMainWindow):
 
         self.setup_menu()
         self.setup_ui()
+        self.folder_loader = FolderLoader(self)
+        self.folder_loader.loaded.connect(self._on_folder_loaded)
+        self._tree_requests = {}
+        self._pending_folder = None
+        self.dir_tree.itemExpanded.connect(self._expand_folder_tree)
         self.retranslate_ui()           # first paint with correct language
 
         self.check_auto_load_dict()
         if initial_path and os.path.exists(initial_path):
             self.select_root_folder(initial_path)
 
-        self.tagging_completed.connect(self._on_tagging_finished)
+        self._connect_tagging_signals()
 
         self.resize(1024, 720)
 
@@ -176,7 +186,7 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────────────
     def setup_menu(self):
         menubar = self.menuBar()
-        self.settings = QSettings("settings.ini", QSettings.IniFormat)
+        self.settings = settings
 
         # File – use empty strings; retranslate_ui fills them
         self._file_menu = menubar.addMenu("")
@@ -521,11 +531,11 @@ class MainWindow(QMainWindow):
         recent_folders.insert(0, folder)
         recent_folders = recent_folders[:10]
 
-        self.settings.setValue("recent_list", recent_folders)
+        self.settings.set_value("recent_list", recent_folders)
         self.update_recent_menu()
 
     def clear_recent_history(self):
-        self.settings.setValue("recent_list", [])
+        self.settings.set_value("recent_list", [])
         self.update_recent_menu()
 
     # ──────────────────────────────────────────────
@@ -539,29 +549,99 @@ class MainWindow(QMainWindow):
         if path:
             self._set_active_directory(path)
 
-    def _populate_tree(self, root_path: str):
+    def _populate_tree(self, root_path: str, children=None):
         self.dir_tree.clear()
+        self._tree_requests = {}
+        root = QTreeWidgetItem(self.dir_tree, [os.path.basename(root_path) or root_path])
+        root.setData(0, Qt.UserRole, root_path)
+        root.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
+        if children is not None:
+            self._fill_tree_children(root, children)
+        root.setExpanded(True)
 
-        def add_node(path: str, parent_item):
-            name = os.path.basename(path) or path
-            item = QTreeWidgetItem(parent_item, [name])
-            item.setData(0, Qt.UserRole, path)
-            try:
-                for sub in sorted(os.listdir(path)):
-                    sub_path = os.path.join(path, sub)
-                    if os.path.isdir(sub_path):
-                        add_node(sub_path, item)
-            except PermissionError:
-                pass
-            return item
+    def _fill_tree_children(self, item, paths):
+        item.setData(0, Qt.UserRole + 1, True)
+        for path in paths:
+            child = QTreeWidgetItem(item, [os.path.basename(path)])
+            child.setData(0, Qt.UserRole, path)
+            child.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
+        if not paths:
+            item.setChildIndicatorPolicy(QTreeWidgetItem.DontShowIndicator)
 
-        root_item = add_node(root_path, self.dir_tree)
-        root_item.setExpanded(True)
+    def _expand_folder_tree(self, item):
+        if item.data(0, Qt.UserRole + 1):
+            return
+        item.setData(0, Qt.UserRole + 1, True)
+        token = self.folder_loader.request(item.data(0, Qt.UserRole))
+        self._tree_requests[token] = item
+
+    def _request_folder(self, folder, new_root=False):
+        if getattr(self, "_pending_folder", None):
+            return
+        if not hasattr(self, 'folder_loader'):
+            return self._load_folder(folder)
+        if not new_root and folder in self._folder_cache:
+            self._load_folder(folder)
+            return
+        extension = settings.value('load_extension', 'txt').lstrip('.')
+        token = self.folder_loader.request(folder, extension=extension)
+        self._pending_folder = (token, new_root)
+        # Keep editing stable while metadata is read; commit only after success.
+        controls = [self.centralWidget(), self._edit_menu, *self.findChildren(QDockWidget)]
+        if hasattr(self, 'tool_menu'):
+            controls.append(self.tool_menu)
+        self._loading_controls = [(control, control.isEnabled()) for control in controls]
+        for control, _ in self._loading_controls:
+            control.setEnabled(False)
+        self._act_waifu.setEnabled(False)
+        self.statusBar().showMessage(tr('folder_loading', folder=folder))
+
+    @Slot(object)
+    def _on_folder_loaded(self, payload):
+        token = payload['token']
+        item = self._tree_requests.pop(token, None)
+        if item is not None:
+            if payload.get('error'):
+                item.setData(0, Qt.UserRole + 1, False)
+            else:
+                self._fill_tree_children(item, payload['children'])
+            return
+        if not self._pending_folder or self._pending_folder[0] != token:
+            return
+        _, new_root = self._pending_folder
+        self._pending_folder = None
+        for control, enabled in self._loading_controls:
+            control.setEnabled(enabled)
+        self._loading_controls = []
+        self._act_waifu.setEnabled(not getattr(self, "_tagging_running", False))
+        if payload.get('error'):
+            QMessageBox.critical(self, tr('ldl_error'), payload['error'])
+            if self.current_folder:
+                self._highlight_tree_item(self.current_folder)
+            return
+        folder = payload['path']
+        if new_root:
+            self.history.clear()
+            self._undo_folders.clear()
+            self._redo_folders.clear()
+            self._folder_cache.clear()
+            self.root_folder = folder
+            self._populate_tree(folder, payload['children'])
+        else:
+            self._save_current_folder_state()
+        self.images = (self._folder_cache.get(folder, payload['images'])
+                       if not new_root else payload['images'])
+        self.current_folder = folder
+        self._folder_cache[folder] = self.images
+        self._load_all_folder_tags()
+        self.statusBar().showMessage(tr('status_loaded', count=len(self.images), folder=folder))
+        if new_root:
+            self.save_to_recent(folder)
 
     def _on_tree_item_clicked(self, item: QTreeWidgetItem, column: int):
         path = item.data(0, Qt.UserRole)
         if path and os.path.isdir(path):
-            self._load_folder(path)
+            self._request_folder(path)
 
     def _load_folder(self, folder: str):
         # Lưu state folder hiện tại trước
@@ -594,6 +674,8 @@ class MainWindow(QMainWindow):
             for tag in img['tags']:
                 counts[tag] = counts.get(tag, 0) + 1
         self.folder_tag_counts = counts
+        self._counts_images = self.images
+        self._pending_tag_deltas = []
         self.all_folder_tags = sorted(counts.keys())
         self.tag_panel.load_tags(self.all_folder_tags, self.folder_tag_counts)
         self.image_grid.set_data(self.images, {})
@@ -634,19 +716,31 @@ class MainWindow(QMainWindow):
     def _set_active_directory(self, folder):
         """Hàm tập trung duy nhất để thay đổi thư mục làm việc"""
 
+        if getattr(self, "_tagging_running", False):
+            QMessageBox.information(self, tr("waifu_win_title"), tr("waifu_wait_running"))
+            return
+
+        if getattr(self, "_pending_folder", None):
+            return
+
         if not os.path.isdir(folder):
             raise NotADirectoryError(f"The path does not exist or is not a directory: {folder}")
 
-        if self.images and self._has_unsaved():
+        if self._has_unsaved():
             resp = QMessageBox.question(
                 self, tr("dlg_save_before_switch"), tr("dlg_save_before_switch_msg"),
                 QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel
             )
             if resp == QMessageBox.Yes:
-                self.save_all()
+                if not self.save_all():
+                    return
             elif resp == QMessageBox.Cancel:
                 return
         
+        if hasattr(self, "folder_loader"):
+            self._request_folder(folder, new_root=True)
+            return
+
         self.history.clear()
         self._undo_folders.clear()
         self._redo_folders.clear()
@@ -664,35 +758,45 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────────────
     #  Save
     # ──────────────────────────────────────────────
-    def save_all(self):
+    def save_all(self) -> bool:
+        """Return success so callers can stop closing or switching on failure."""
         # Gom tất cả images từ cache + folder hiện tại
         all_images = list(self.images)
         for path, cached in self._folder_cache.items():
             if path != self.current_folder:
                 all_images.extend(cached)
 
-        count = save_all_images(all_images)
-        # count = save_all_images(self.images)
+        try:
+            count = save_all_images(all_images)
+        except Exception as exc:
+            QMessageBox.critical(self, "Save failed", f"Backup/save failed: {exc}")
+            return False
         if count:
             QMessageBox.information(self, tr("save_success"),
                                     tr("save_success_msg", count=count))
         else:
             QMessageBox.information(self, tr("save_nothing"), tr("save_nothing_msg"))
         self.statusBar().showMessage(tr("status_saved", count=count))
+        return True
 
     # ──────────────────────────────────────────────
     #  Undo / Redo
     # ──────────────────────────────────────────────
-    def _snapshot(self) -> list:
-        return self.history.snapshot_tags(self.images)
+    def _snapshot(self, indices=None) -> dict:
+        return self.history.snapshot_tags(self.images, indices)
 
-    def _push_history(self, action: str, before: list):
-        self.history.push(action, before, self.images)
-        # Record which folder this edit belongs to.
-        # history.clear() is called in _set_active_directory so these lists
-        # are always in sync with the HistoryManager stacks.
+    def _queue_tag_deltas(self):
+        pending = getattr(self, '_pending_tag_deltas', [])
+        pending.extend(self.history.last_changes.values())
+        self._pending_tag_deltas = pending
+
+    def _push_history(self, action: str, before):
+        if not self.history.push(action, before, self.images):
+            return
+        self._queue_tag_deltas()
         self._undo_folders.append(self.current_folder)
-        self._redo_folders.clear()   # new edit invalidates redo branch
+        self._undo_folders = self._undo_folders[-self.history.max_history:]
+        self._redo_folders.clear()
 
     def do_undo(self):
         if not self.history.can_undo():
@@ -711,6 +815,7 @@ class MainWindow(QMainWindow):
             # Move folder token from undo stack → redo stack.
             if self._undo_folders:
                 self._redo_folders.append(self._undo_folders.pop())
+            self._queue_tag_deltas()
             self._refresh_after_tag_change()
             self.statusBar().showMessage(tr("undo_done", action=action))
         else:
@@ -731,6 +836,7 @@ class MainWindow(QMainWindow):
             # Move folder token from redo stack → undo stack.
             if self._redo_folders:
                 self._undo_folders.append(self._redo_folders.pop())
+            self._queue_tag_deltas()
             self._refresh_after_tag_change()
             self.statusBar().showMessage(tr("redo_done", action=action))
         else:
@@ -751,9 +857,12 @@ class MainWindow(QMainWindow):
             self.act_redo.setText(tr("ldl_redo"))
 
     def _refresh_after_tag_change(self):
-        self._load_all_folder_tags()
-        for idx in range(len(self.images)):
-            self.image_grid.refresh_card(idx)
+        if self.image_grid._images is not self.images:
+            self._load_all_folder_tags()
+        else:
+            self._reload_tags_panel()
+            self.image_grid.refresh_tags()
+            self.image_grid.deselect_all()
 
     def _navigate_to_folder_for_undo_redo(self, folder: str):
         """Navigate silently to `folder` for undo/redo — no save dialog, no history clear."""
@@ -853,7 +962,7 @@ class MainWindow(QMainWindow):
         if not new_tags:
             return
 
-        before = self._snapshot()
+        before = self._snapshot([idx])
         for tag in new_tags:
             self.images[idx]['tags'].append(tag)
         self.images[idx]['modified'] = True
@@ -882,7 +991,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, tr("warn_no_tag"), tr("warn_no_tag_msg"))
             return
 
-        before = self._snapshot()
+        before = self._snapshot(self._selected_images)
         count = 0
 
         insert_at_beginning = self._order_tag_combo.currentIndex() == 0
@@ -919,7 +1028,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, tr("warn_no_image"), tr("warn_no_image_msg"))
             return
 
-        before = self._snapshot()
+        before = self._snapshot(self._selected_images)
         affected = 0
         for idx in list(self._selected_images):
             modified = False
@@ -940,7 +1049,7 @@ class MainWindow(QMainWindow):
 
     def _on_individual_tag_remove(self, idx: int, tag: str):
         if tag in self.images[idx]['tags']:
-            before = self._snapshot()
+            before = self._snapshot([idx])
             self.images[idx]['tags'].remove(tag)
             self.images[idx]['modified'] = True
             self._push_history(
@@ -966,7 +1075,7 @@ class MainWindow(QMainWindow):
         if confirm != QMessageBox.Yes:
             return
 
-        before = self._snapshot()
+        before = self._snapshot(self._selected_images)
         affected = 0
         
         for idx in list(self._selected_images):
@@ -1013,21 +1122,20 @@ class MainWindow(QMainWindow):
         self.image_grid.set_columns(n)
 
     def _reload_tags_panel(self):
-        current_filters = self.tag_panel._tag_filters.copy()
-        counts = {}
-        for img in self.images:
-            for tag in img['tags']:
-                counts[tag] = counts.get(tag, 0) + 1
-
+        if getattr(self, '_counts_images', None) is self.images:
+            counts = Counter(self.folder_tag_counts)
+            for old, new in getattr(self, '_pending_tag_deltas', []):
+                counts.subtract(old)
+                counts.update(new)
+            counts = {tag: count for tag, count in counts.items() if count > 0}
+        else:
+            counts = Counter(tag for image in self.images for tag in image['tags'])
+        self._counts_images = self.images
+        self._pending_tag_deltas = []
         self.folder_tag_counts = counts
-        self.all_folder_tags = sorted(counts.keys())
-        self.tag_panel.load_tags(self.all_folder_tags, self.folder_tag_counts)
-
-        for tag, is_active in current_filters.items():
-            if tag in self.tag_panel._check_boxes:
-                self.tag_panel._check_boxes[tag].setChecked(is_active)
-
-        self.image_grid.set_tag_filters(current_filters)
+        self.all_folder_tags = sorted(counts)
+        self.tag_panel.load_tags(self.all_folder_tags, counts, preserve_filters=True)
+        self.image_grid.set_tag_filters(self.tag_panel._tag_filters)
 
     # ──────────────────────────────────────────────
     #  Tool operations
@@ -1055,6 +1163,16 @@ class MainWindow(QMainWindow):
     # ──────────────────────────────────────────────
     #  Waifu Tagger
     # ──────────────────────────────────────────────
+    def _connect_tagging_signals(self):
+        # All receivers belong to MainWindow on the GUI thread.
+        self.tagging_completed.connect(self._on_tagging_finished, Qt.QueuedConnection)
+        self.tagging_progress.connect(self._on_tagging_progress, Qt.QueuedConnection)
+        self.tagging_failed.connect(self._on_tagging_failed, Qt.QueuedConnection)
+
+    @Slot(str)
+    def _on_tagging_progress(self, message):
+        self.statusBar().showMessage(message)
+
     def open_waifu_tagger(self):
         if not self.root_folder:
             QMessageBox.information(self, tr("ldl_no_images"), tr("resort_no_folder_open_msg"))
@@ -1069,60 +1187,121 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _on_tagging_started(self, config: dict):
+        if getattr(self, '_tagging_running', False) or getattr(self, '_pending_folder', None):
+            return
+        self._tagging_running = True
+        self._act_waifu.setEnabled(False)
         self.statusBar().showMessage(tr("waifu_running", mode=config['mode']))
-
         from threading import Thread
-        from tagger_logic import run_tagger, run_tagger_api
+        extension = settings.value('load_extension', 'txt').lstrip('.')
+        cached_folders = {os.path.abspath(folder) for folder in getattr(self, '_folder_cache', {})}
+        if getattr(self, 'current_folder', None):
+            cached_folders.add(os.path.abspath(self.current_folder))
 
         def thread_wrapper():
             try:
-                target_func = run_tagger if config["mode"] == "local" else run_tagger_api
-                results = target_func(config, lambda c, t, m: self.statusBar().showMessage(f"[{c}/{t}] {m}"))
-
-                # Both local and API now return a list[dict] — emit uniformly.
-                # run_tagger_api reads back the .txt files written by the server
-                # so we get a real results list and can push history properly.
-                if results and isinstance(results, list):
-                    self.tagging_completed.emit(results)
+                # Import the AI backend only inside the selected execution path.
+                if config['mode'] == 'external':
+                    from tools.external_tagger import run_external_tagger
+                    target_func = run_external_tagger
                 else:
-                    # Fallback: empty result → just reload folder from disk
-                    self.tagging_completed.emit([])
+                    from tools.tagger_logic import run_tagger
+                    target_func = run_tagger
+                results = target_func(config, lambda c, t, m:
+                                      self.tagging_progress.emit(f"[{c}/{t}] {m}"))
+                # Prepare unopened folders on the worker too. The UI still
+                # prefers live cache entries, preserving edits made during AI.
+                prepared = set(cached_folders)
+                for item in results or []:
+                    if item.get('skipped') or item.get('error') or item.get('tags') is None:
+                        continue
+                    folder = os.path.dirname(os.path.abspath(item['path']))
+                    if folder not in prepared:
+                        item['_folder_images'] = load_folder_images(folder, extension=extension)
+                        prepared.add(folder)
+                self.tagging_completed.emit(results or [])
             except Exception as exc:
-                self.statusBar().showMessage(tr("waifu_error", error=exc))
+                self.tagging_failed.emit(str(exc))
 
         Thread(target=thread_wrapper, daemon=True).start()
 
+    def _finish_tagging_job(self):
+        self._tagging_running = False
+        self._act_waifu.setEnabled(not bool(getattr(self, "_pending_folder", None)))
+
+    @Slot(str)
+    def _on_tagging_failed(self, message):
+        self._finish_tagging_job()
+        self.statusBar().showMessage(tr("waifu_error", error=message))
+        QMessageBox.critical(self, tr("waifu_win_title"), message)
+
+    @Slot(list)
     def _on_tagging_finished(self, results: list):
-        if not results:
-            # Fallback for unexpected empty results — reload from disk
-            self._load_folder(self.current_folder)
-            self.statusBar().showMessage(tr("waifu_reload_done"))
-            QMessageBox.information(self, tr("remove_dup_done"), tr("waifu_reload_msg"))
-            return
+        try:
+            self._merge_tagging_results(results)
+        except Exception as exc:
+            self._on_tagging_failed(str(exc))
+        finally:
+            self._finish_tagging_job()
 
-        before = self._snapshot()
-        path_to_idx = {img['path']: i for i, img in enumerate(self.images)}
-        updated_count = 0
-
+    def _merge_tagging_results(self, results: list):
+        # Group by source folder, not the folder visible when the worker finishes.
+        grouped = {}
+        prepared_images = {}
         for item in results:
-            if item.get("skipped"):
+            # [] is a successful overwrite that clears old tags; only None
+            # means no tag result was supplied.
+            if item.get('skipped') or item.get('error') or item.get('tags') is None:
                 continue
+            path = os.path.abspath(item['path'])
+            folder = os.path.dirname(path)
+            grouped.setdefault(folder, {})[path] = item['tags']
+            if '_folder_images' in item:
+                prepared_images[folder] = item['_folder_images']
 
-            img_path = item.get("path")
-            new_tags = item.get("tags")
-            if not new_tags:
-                continue
-            if img_path in path_to_idx:
-                idx = path_to_idx[img_path]
-                self.images[idx]['tags'] = new_tags
-                self.images[idx]['modified'] = True
-                updated_count += 1
+        updated_count = 0
+        for folder, tags_by_path in grouped.items():
+            if self.current_folder and os.path.abspath(self.current_folder) == folder:
+                images = self.images
+                history_folder = self.current_folder
+            else:
+                history_folder = next((key for key in self._folder_cache
+                                       if os.path.abspath(key) == folder), folder)
+                images = self._folder_cache.get(history_folder)
+                if images is None:
+                    images = prepared_images.get(folder)
+                    if images is None:
+                        images = load_folder_images(folder)
+                    self._folder_cache[history_folder] = images
+            before = self.history.snapshot_tags(images,
+                [idx for idx, image in enumerate(images) if os.path.abspath(image['path']) in tags_by_path])
+            count = 0
+            for image in images:
+                path = os.path.abspath(image['path'])
+                if path in tags_by_path:
+                    image['tags'] = list(tags_by_path[path])
+                    image['modified'] = True
+                    count += 1
+            if count:
+                if self.history.push(tr("history_waifu_tag", count=count), before, images):
+                    if images is self.images:
+                        self._queue_tag_deltas()
+                    self._undo_folders.append(history_folder)
+                    self._undo_folders = self._undo_folders[-self.history.max_history:]
+                    self._redo_folders.clear()
+                updated_count += count
 
-        self._push_history(tr("history_waifu_tag", count=updated_count), before)
-        self._refresh_after_tag_change()
+        # No-result jobs must not reload disk over unsaved edits.
+        if updated_count:
+            self._refresh_after_tag_change()
         self.statusBar().showMessage(tr("waifu_done_status", count=updated_count))
-        QMessageBox.information(self, tr("remove_dup_done"),
-                                tr("waifu_done_msg", count=updated_count))
+        errors = [str(item['error']) for item in results if item.get('error')]
+        if errors:
+            QMessageBox.warning(self, tr("waifu_win_title"),
+                                tr("waifu_done_msg", count=updated_count) + "\n" + "\n".join(errors[:10]))
+        else:
+            QMessageBox.information(self, tr("remove_dup_done"),
+                                    tr("waifu_done_msg", count=updated_count))
 
     # ──────────────────────────────────────────────
     #  Dict Manager
@@ -1178,9 +1357,9 @@ class MainWindow(QMainWindow):
             self, tr("dlg_load_dict"), "", "JSON Files (*.json);;All Files (*)"
         )
         if file_path:
-            self.settings.setValue("auto_load_dict_path", file_path)
+            self.settings.set_value("auto_load_dict_path", file_path)
             self.dict_load(file_path)
-            QMessageBox.information(self, tr("success"), f"Đã thiết lập tự động load:\n{file_path}")
+            QMessageBox.information(self, tr("success"), tr("auto_load_dict_set", path=file_path))
 
     def check_auto_load_dict(self):
         """Hàm này gọi khi khởi động ứng dụng"""
@@ -1252,13 +1431,19 @@ class MainWindow(QMainWindow):
     #  Closing
     # ──────────────────────────────────────────────
     def closeEvent(self, event):
+        if getattr(self, '_tagging_running', False):
+            QMessageBox.information(self, tr("waifu_win_title"), tr("waifu_wait_running"))
+            event.ignore()
+            return
         if self._has_unsaved():
             resp = QMessageBox.question(
                 self, tr("close_save_title"), tr("close_save_msg"),
                 QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel
             )
             if resp == QMessageBox.Yes:
-                self.save_all()
+                if not self.save_all():
+                    event.ignore()
+                    return
                 event.accept()
             elif resp == QMessageBox.No:
                 event.accept()

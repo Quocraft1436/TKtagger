@@ -1,11 +1,2 @@
+# GUI and installed-tool mode (AI dependencies stay in the tool's venv).
 PySide6
-
-# AI Inference local / Xử lý ảnh trong App
-numpy>=1.26.0
-Pillow>=10.0.0
-onnxruntime>=1.17.0        # If running on CPU / Nếu chạy bằng CPU
-# onnxruntime-gpu>=1.17.0   # If NVIDIA GPU (CUDA/cuDNN needs to be installed) / Nếu dùng GPU NVIDIA (Cần cài thêm CUDA/cuDNN)
-
-# If using API execution mode / Nêu chạy API Bên ngoài
-huggingface-hub
-gradio_client

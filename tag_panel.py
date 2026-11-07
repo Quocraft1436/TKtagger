@@ -24,6 +24,7 @@ class TagPanel(QWidget):
         self._tag_counts:  dict = {}
         self._tag_filters: dict = {}
         self._check_boxes: dict = {}
+        self._count_labels = {}
         self._dict_groups: dict = {}   # {group_name: [tag, …]}
         self._dict_loaded: bool = False
         self.setup_ui()
@@ -170,6 +171,7 @@ class TagPanel(QWidget):
         self._check_boxes[tag] = cb
         count = self._tag_counts.get(tag, 0)
         lbl = QLabel(f"{tag} ({count})")
+        self._count_labels[tag] = lbl
         lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         lbl.setCursor(Qt.PointingHandCursor)
         lbl.mousePressEvent = lambda e, t=tag: self.tag_insert_requested.emit(t)
@@ -185,11 +187,16 @@ class TagPanel(QWidget):
         return row
 
     # ─── Load / rebuild ──────────────────────────────────────────────────────
-    def load_tags(self, all_tags: list, tag_counts: dict):
-        self._all_tags    = all_tags
-        self._tag_counts  = tag_counts
-        self._tag_filters = {}
-        self._check_boxes = {}
+    def load_tags(self, all_tags: list, tag_counts: dict, preserve_filters=False):
+        unchanged = self._all_tags == all_tags
+        self._all_tags = all_tags
+        self._tag_counts = tag_counts
+        self._tag_filters = ({tag: enabled for tag, enabled in self._tag_filters.items()
+                              if tag in tag_counts} if preserve_filters else {})
+        if unchanged and preserve_filters:
+            for tag, label in self._count_labels.items():
+                label.setText(f"{tag} ({tag_counts.get(tag, 0)})")
+            return
         self._rebuild_tag_list(self.search_edit.text())
 
     def _get_group_whitelist(self):
@@ -214,6 +221,7 @@ class TagPanel(QWidget):
             if item.widget():
                 item.widget().deleteLater()
         self._check_boxes.clear()
+        self._count_labels.clear()
 
         # JEI tokens
         tokens = [t.strip().lower() for t in filter_text.split(",") if t.strip()]

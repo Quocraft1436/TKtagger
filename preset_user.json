@@ -1,0 +1,29 @@
+{
+    "/home/antion/dictbook_advanced_v3.json": {
+        "Character_Trainer": [
+            "Character Trigger",
+            "Character Feature",
+            "Hair",
+            "Accessories",
+            "Outfit",
+            "Outfit Upper",
+            "Outfit Lower",
+            "Head Wear",
+            "Pattern & Printing",
+            "People",
+            "Emotion",
+            "Trigger Custom",
+            "Body & Face",
+            "Pose & Framing",
+            "Perspective & Composition",
+            "Object",
+            "Animal",
+            "Vehicle",
+            "Scene",
+            "Background",
+            "Weather",
+            "Visual Effects & Lighting",
+            "Other"
+        ]
+    }
+}

@@ -8,10 +8,13 @@ import os
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QLineEdit, QCheckBox, QSlider, QComboBox, QPushButton,
-    QGroupBox, QScrollArea, QFileDialog, QWidget, QFrame
+    QGroupBox, QScrollArea, QFileDialog, QWidget, QFrame, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal
 from i18n import tr
+from app_paths import build_info, bundled_model, local_ai_available
+from settings_manager import settings
+from tools.external_tagger import discover_tool, validate_external_config
 
 # ── App-wide style constants (mirror what the rest of the app uses) ──────────
 _BTN_PRIMARY = (
@@ -60,6 +63,23 @@ class WaifuTaggerWindow(QDialog):
         self.resize(580, 780)
         self.setup_ui()
         self.retranslate_ui()
+        self.tool_path.setText(settings.value("wd14/tool_path", ""))
+        self.tool_type.setCurrentIndex(max(0, self.tool_type.findData(settings.value("wd14/tool_type", "auto"))))
+        self.python_path.setText(settings.value("wd14/python_path", ""))
+        self._scan_tool()
+        saved_model = settings.value("wd14/model_path", "")
+        for index in range(self.detected_models.count()):
+            if self.detected_models.itemData(index)["onnx_path"] == saved_model:
+                self.detected_models.setCurrentIndex(index)
+                break
+        model = bundled_model()
+        if model and not self.onnx_path.text():
+            self.onnx_path.setText(model[0])
+            self.csv_path.setText(model[1])
+            self.repo_id.setText(build_info()['model_repo'])
+        if not local_ai_available():
+            self.run_mode.model().item(0).setEnabled(False)
+        self.run_mode.setCurrentIndex(1 if not local_ai_available() or settings.value("wd14/mode", "local") == "external" else 0)
 
     # ─────────────────────────────────────────────
     #  UI
@@ -88,24 +108,51 @@ class WaifuTaggerWindow(QDialog):
         self._run_mode_lbl = QLabel()
         mode_row.addWidget(self._run_mode_lbl)
         self.run_mode = QComboBox()
-        self.run_mode.addItems(["Local", "API"])
+        self.run_mode.addItems(["Local", "Installed tool"])
         self.run_mode.setCurrentIndex(0)
         mode_row.addWidget(self.run_mode, 1)
         v_mode.addLayout(mode_row)
 
-        self.api_url_frame = QWidget()
-        api_row = QHBoxLayout(self.api_url_frame)
-        api_row.setContentsMargins(0, 0, 0, 0)
-        self._api_url_lbl = QLabel()
-        api_row.addWidget(self._api_url_lbl)
-        self.api_url = QLineEdit("http://127.0.0.1:7860/")
-        api_row.addWidget(self.api_url)
-        v_mode.addWidget(self.api_url_frame)
-
-        self.run_mode.currentIndexChanged.connect(
-            lambda i: self.api_url_frame.setVisible(i == 1)
-        )
-        self.api_url_frame.setVisible(False)
+        self.tool_frame = QWidget()
+        tool_layout = QGridLayout(self.tool_frame)
+        tool_layout.setContentsMargins(0, 0, 0, 0)
+        self._tool_path_lbl = QLabel()
+        self.tool_path = QLineEdit()
+        self._tool_browse_btn = QPushButton()
+        self._tool_browse_btn.clicked.connect(self._browse_tool)
+        tool_layout.addWidget(self._tool_path_lbl, 0, 0)
+        tool_layout.addWidget(self.tool_path, 0, 1)
+        tool_layout.addWidget(self._tool_browse_btn, 0, 2)
+        self._tool_type_lbl = QLabel()
+        self.tool_type = QComboBox()
+        self.tool_type.addItem("Auto", "auto")
+        self.tool_type.addItem("Kohya_ss", "kohya_ss")
+        self.tool_type.addItem("sd-scripts", "sd_scripts")
+        self._tool_scan_btn = QPushButton()
+        self._tool_scan_btn.clicked.connect(self._scan_tool)
+        tool_layout.addWidget(self._tool_type_lbl, 1, 0)
+        tool_layout.addWidget(self.tool_type, 1, 1)
+        tool_layout.addWidget(self._tool_scan_btn, 1, 2)
+        self._python_lbl = QLabel()
+        self.python_path = QLineEdit()
+        self._python_browse_btn = QPushButton()
+        self._python_browse_btn.clicked.connect(self._browse_python)
+        tool_layout.addWidget(self._python_lbl, 2, 0)
+        tool_layout.addWidget(self.python_path, 2, 1)
+        tool_layout.addWidget(self._python_browse_btn, 2, 2)
+        self._detected_models_lbl = QLabel()
+        self.detected_models = QComboBox()
+        self.detected_models.currentIndexChanged.connect(self._select_detected_model)
+        tool_layout.addWidget(self._detected_models_lbl, 3, 0)
+        tool_layout.addWidget(self.detected_models, 3, 1, 1, 2)
+        self.tool_status = QLabel()
+        self.tool_status.setWordWrap(True)
+        tool_layout.addWidget(self.tool_status, 4, 0, 1, 3)
+        v_mode.addWidget(self.tool_frame)
+        self.run_mode.currentIndexChanged.connect(self._set_execution_mode)
+        self.tool_frame.setVisible(False)
+        self.tool_path.editingFinished.connect(self._scan_tool)
+        self.tool_type.currentIndexChanged.connect(self._scan_tool)
         layout.addWidget(self._mode_group)
 
         # ── 1. Model Settings ─────────────────────
@@ -173,7 +220,7 @@ class WaifuTaggerWindow(QDialog):
 
         # TODO add HBox layout with Label here
         mode_layout = QHBoxLayout()
-        self._write_mode_lbl = QLabel()
+        self._write_mode_lbl = QLabel(tr("waifu_write_mode"))
         self.write_mode = QComboBox()
         self.write_mode.addItems([ tr("waifu_mode_skip") , tr("waifu_mode_overwrite")])
         self.write_mode.setCurrentIndex(1) # Mặc định là Overwrite
@@ -265,10 +312,17 @@ class WaifuTaggerWindow(QDialog):
         current_idx = self.run_mode.currentIndex()
         self.run_mode.blockSignals(True)
         self.run_mode.clear()
-        self.run_mode.addItems([tr("waifu_mode_local"), tr("waifu_mode_api")])
+        self.run_mode.addItems([tr("waifu_mode_local"), tr("waifu_mode_external")])
         self.run_mode.setCurrentIndex(current_idx)
         self.run_mode.blockSignals(False)
-        self._api_url_lbl.setText(tr("waifu_api_url_label"))
+        self._tool_path_lbl.setText(tr("waifu_tool_path"))
+        self._tool_type_lbl.setText(tr("waifu_tool_type"))
+        self.tool_type.setItemText(0, tr("waifu_tool_auto"))
+        self._python_lbl.setText(tr("waifu_tool_python"))
+        self._detected_models_lbl.setText(tr("waifu_installed_models"))
+        self._tool_scan_btn.setText(tr("waifu_scan_tool"))
+        self._tool_browse_btn.setText(tr("waifu_browse"))
+        self._python_browse_btn.setText(tr("waifu_browse"))
 
         # Model settings
         self._model_group.setTitle(tr("waifu_model_settings"))
@@ -325,6 +379,68 @@ class WaifuTaggerWindow(QDialog):
         slider.valueChanged.connect(lambda v: val_lbl.setText(f"{v / 100:.2f}"))
         return slider, val_lbl
 
+    def _set_execution_mode(self, index):
+        self.tool_frame.setVisible(index == 1)
+        self.repo_id.setEnabled(index == 0)
+        self.force_download.setEnabled(index == 0)
+        if index == 1:
+            self.force_download.setChecked(False)
+            self._scan_tool()
+
+    def _browse_tool(self):
+        path = QFileDialog.getExistingDirectory(self, tr("waifu_tool_path"), self.tool_path.text())
+        if path:
+            self.tool_path.setText(path)
+            self.python_path.clear()
+            self._scan_tool()
+
+    def _browse_python(self):
+        path, _ = QFileDialog.getOpenFileName(self, tr("waifu_tool_python"), self.tool_path.text())
+        if path:
+            self.python_path.setText(path)
+
+    def _scan_tool(self):
+        path = self.tool_path.text().strip()
+        previous_path = getattr(self, '_last_scanned_path', path)
+        if path != previous_path:
+            self.python_path.clear()
+        self._last_scanned_path = path
+        previous = self.detected_models.currentData()
+        self.detected_models.clear()
+        if not self.tool_path.text().strip():
+            self.tool_status.setText(tr("waifu_tool_hint"))
+            return
+        try:
+            info = discover_tool(self.tool_path.text(), self.tool_type.currentData())
+        except ValueError as exc:
+            self.tool_status.setText(str(exc))
+            return
+        if not self.python_path.text().strip():
+            self.python_path.setText(info['python_path'])
+        for model in info['models']:
+            name = os.path.basename(os.path.dirname(model['onnx_path']))
+            if os.path.basename(model['onnx_path']) != 'model.onnx':
+                name += ' / ' + os.path.basename(model['onnx_path'])
+            self.detected_models.addItem(name, model)
+            self.detected_models.setItemData(self.detected_models.count() - 1, model['onnx_path'], Qt.ToolTipRole)
+        if previous:
+            for index in range(self.detected_models.count()):
+                if self.detected_models.itemData(index)['onnx_path'] == previous['onnx_path']:
+                    self.detected_models.setCurrentIndex(index)
+                    break
+        message = tr("waifu_tool_found", tool=info['tool_type'], count=len(info['models']))
+        if not info['models']:
+            message += "\n" + tr("waifu_tool_no_models")
+        if not info['python_path']:
+            message += "\n" + tr("waifu_tool_no_python")
+        self.tool_status.setText(message)
+
+    def _select_detected_model(self, index):
+        model = self.detected_models.itemData(index)
+        if model:
+            self.onnx_path.setText(model['onnx_path'])
+            self.csv_path.setText(model['csv_path'])
+
     def _browse_onnx(self):
         path, _ = QFileDialog.getOpenFileName(
             self,
@@ -356,8 +472,10 @@ class WaifuTaggerWindow(QDialog):
         csv  = self.csv_path.text().strip()
 
         config = {
-            "mode":               "local" if self.run_mode.currentIndex() == 0 else "api",
-            "api_url":            self.api_url.text().strip(),
+            "mode":               "local" if self.run_mode.currentIndex() == 0 else "external",
+            "tool_path":          self.tool_path.text().strip(),
+            "tool_type":          self.tool_type.currentData(),
+            "python_path":        self.python_path.text().strip(),
 
             "repo_id":            self.repo_id.text().strip(),
             "onnx_path":          onnx if onnx else None,
@@ -385,5 +503,14 @@ class WaifuTaggerWindow(QDialog):
             "replacement_map":    {},
         }
 
+        if config['mode'] == 'external':
+            try:
+                validate_external_config(config)
+            except ValueError as exc:
+                QMessageBox.warning(self, tr("waifu_exec_mode"), str(exc))
+                return
+        for key in ('tool_path', 'tool_type', 'python_path', 'mode'):
+            settings.set_value('wd14/' + key, config[key])
+        settings.set_value('wd14/model_path', config['onnx_path'] or '')
         self.tagging_started.emit(config)
         self.accept()

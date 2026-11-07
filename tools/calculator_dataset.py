@@ -43,7 +43,8 @@ def _scan_folders(root: str) -> list:
     results = []
     root = os.path.normpath(root)
     for dirpath, dirnames, _ in os.walk(root):
-        dirnames.sort()
+        from backup_manager import BACKUP_DIR
+        dirnames[:] = sorted(d for d in dirnames if d != BACKUP_DIR)
         count = _count_tagged_images(dirpath)
         if count > 0:
             name = os.path.basename(dirpath)
@@ -492,6 +493,8 @@ class CalcDatasetDialog(QDialog):
             if fd["path"] == new_path:
                 continue
             try:
+                from backup_manager import backup_folder
+                backup_folder(fd["path"], "rename_dataset_folder")
                 os.rename(fd["path"], new_path)
                 fd.update(path=new_path, name=new_name, existing_repeat=r["repeat"])
                 renamed += 1

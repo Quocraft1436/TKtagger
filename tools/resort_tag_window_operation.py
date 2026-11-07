@@ -1,3 +1,4 @@
+from app_paths import user_file
 import json
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -237,7 +238,7 @@ class ResortTagsGroups(QWidget):
 
     def _load_presets_from_file(self) -> dict:
         """Đọc danh sách preset từ tệp preset_user.json dựa theo location path của dictionary gốc."""
-        preset_file = Path("preset_user.json")
+        preset_file = user_file("preset_user.json")
         if preset_file.exists():
             try:
                 with open(preset_file, "r", encoding="utf-8") as f:
@@ -251,7 +252,7 @@ class ResortTagsGroups(QWidget):
 
     def _save_presets_to_file(self):
         """Lưu lại danh sách preset vào tệp preset_user.json phân định theo dict_path."""
-        preset_file = Path("preset_user.json")
+        preset_file = user_file("preset_user.json")
         all_data = {}
         if preset_file.exists():
             try:

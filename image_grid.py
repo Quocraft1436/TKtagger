@@ -2,16 +2,16 @@
 image_grid.py - Widget hiển thị lưới ảnh
 """
 from PySide6.QtWidgets import (
-    QWidget, QScrollArea, QGridLayout, QVBoxLayout,
+    QWidget, QScrollArea, QVBoxLayout,
     QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QFrame, QSizePolicy, QToolTip
+    QPushButton, QFrame, QToolTip
 )
-from PySide6.QtCore import Qt, Signal, QSize, QRect, QPoint
-from PySide6.QtGui import QPixmap, QImage, QIcon, QImageReader, QPainter, QColor, QFontMetrics, QFont
-import os
+from PySide6.QtCore import Qt, Signal, QRect, QPoint, QTimer, Slot, QEvent
+from PySide6.QtGui import QPixmap, QIcon, QPainter, QColor, QFontMetrics, QFont, QPalette
 import time
 
 from i18n import tr
+from thumbnail_loader import ThumbnailLoader
 
 class ImageCard(QFrame):
     """Widget thẻ ảnh đơn: click để chọn (đổi nền/viền) và hiển thị tags."""
@@ -82,7 +82,14 @@ class ImageCard(QFrame):
         )
         self.tag_display.tag_insert_requested.connect(self.tag_insert_requested.emit)
         
-        layout.addWidget(self.tag_display)
+        # A bounded tag area gives virtual rows a stable height. Long captions
+        # remain accessible by scrolling within the card.
+        self.tag_scroll = QScrollArea()
+        self.tag_scroll.setWidgetResizable(True)
+        self.tag_scroll.setFixedHeight(120)
+        self.tag_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.tag_scroll.setWidget(self.tag_display)
+        layout.addWidget(self.tag_scroll)
         self.refresh_tags()
 
         # Tag entry row (Giữ nguyên như mã nguồn của bạn)
@@ -113,42 +120,15 @@ class ImageCard(QFrame):
         entry_layout.addWidget(add_btn)
         layout.addWidget(entry_row)
 
-    def _load_image(self, label: QLabel):
-        try:
-            path = self.img_data.get('path', None)
-            if not path:
-                raise ValueError("No image path provided")
-
-            reader = QImageReader(path)
-            reader.setAutoTransform(True)  # tôn trọng EXIF orientation
-
-            original_size = reader.size()
-            if original_size.isValid() and original_size.width() > 0:
-                target = QSize(self.img_width, self.img_width)
-                scaled = original_size.scaled(
-                    target, Qt.AspectRatioMode.KeepAspectRatio
-                )
-                reader.setScaledSize(scaled)
-
-            image = reader.read()
-            if image.isNull():
-                raise ValueError(f"Cannot load image from {path}")
-
-            pixmap = QPixmap.fromImage(image)
-            label.setPixmap(pixmap)
-        except Exception:
-            label.setText("❌ Error")
-            label.setStyleSheet("color: red; font-size: 10px;")
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        if not self._image_loaded:
-            self._load_image(self.img_label)
-            self._image_loaded = True
-            elapsed = time.perf_counter() - self._t_start
-            n_tags = len(self.img_data.get('tags', []) or [])
-            print(f"[info] card #{self.idx} render: {elapsed*1000:.1f} ms | tags: {n_tags}")
-            self.render_finished.emit(self.idx, elapsed)
+    def set_thumbnail(self, image):
+        if self._image_loaded:
+            return
+        self._image_loaded = True
+        if image.isNull():
+            self.img_label.setText("❌ Error")
+        else:
+            self.img_label.setPixmap(QPixmap.fromImage(image))
+        self.render_finished.emit(self.idx, time.perf_counter() - self._t_start)
 
     def mousePressEvent(self, event):
         if self.tag_entry.underMouse() or self.preview_btn.underMouse():
@@ -260,33 +240,53 @@ class TagRenderWidget(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # Áp dụng font chữ đã cấu hình
         painter.setFont(self.tag_font)
         metrics = QFontMetrics(self.tag_font)
 
+        # Lấy màu text theo Light/Dark theme của Qt
+        text_color = self.palette().color(QPalette.ColorRole.WindowText)
+
         # Xử lý trường hợp không có tag
         if not self.ordered_tags:
-            painter.setPen(QColor("#888"))
-            painter.drawText(self.rect(), Qt.AlignLeft | Qt.AlignTop, tr("no_tags_msg"))
+            painter.setPen(QColor("#888888"))
+            painter.drawText(
+                self.rect(),
+                Qt.AlignLeft | Qt.AlignTop,
+                tr("no_tags_msg")
+            )
             painter.end()
             return
 
         for i, (rect, tag) in enumerate(self.tag_rects):
             is_active = self.tag_filters.get(tag, False)
-            color = QColor("#80ff80") if is_active else QColor("white")
-            
-            # Vẽ tag
+
+            # Tag active vẫn màu xanh.
+            # Tag bình thường lấy màu text của theme.
+            color = QColor("#80ff80") if is_active else text_color
+
             painter.setPen(color)
-            painter.drawText(rect, Qt.AlignLeft | Qt.AlignTop, tag)
+            painter.drawText(
+                rect,
+                Qt.AlignLeft | Qt.AlignTop,
+                tag
+            )
 
             # Vẽ dấu phẩy
             if i < len(self.tag_rects) - 1:
                 comma_rect = QRect(
-                    rect.right() + 2, rect.top(),
-                    metrics.horizontalAdvance(", "), rect.height()
+                    rect.right() + 2,
+                    rect.top(),
+                    metrics.horizontalAdvance(", "),
+                    rect.height()
                 )
-                painter.setPen(QColor("white"))
-                painter.drawText(comma_rect, Qt.AlignLeft | Qt.AlignTop, ", ")
+
+                # Không hard-code white nữa
+                painter.setPen(text_color)
+                painter.drawText(
+                    comma_rect,
+                    Qt.AlignLeft | Qt.AlignTop,
+                    ", "
+                )
 
         painter.end()
 
@@ -342,24 +342,27 @@ class ImageGrid(QWidget):
         self._img_width = 200
         self._cards: dict = {}
 
-        # --- Đo thời gian render toàn bộ lưới ---
-        self._rebuild_start_time = None
-        self._pending_render_count = 0
-        self._card_render_times = {}  # idx -> elapsed seconds
+        self._sections = []
+        self._virtual_height = 1
+        self._headers = []
+        self._row_height = self._img_width + 174
+        self._rebuilding = False
+        self.rebuild_count = 0
+        self._reorder_timer = QTimer(self)
+        self._reorder_timer.setSingleShot(True)
+        self._reorder_timer.timeout.connect(self._rebuild)
+        self.thumbnails = ThumbnailLoader(self)
+        self.thumbnails.ready.connect(self._thumbnail_ready)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         layout.addWidget(self.scroll_area)
-
         self._container = QWidget()
-        self._grid_layout = QGridLayout(self._container)
-        self._grid_layout.setContentsMargins(8, 8, 8, 8)
-        self._grid_layout.setSpacing(10)
         self.scroll_area.setWidget(self._container)
+        self.scroll_area.verticalScrollBar().valueChanged.connect(self._update_visible)
+        self.scroll_area.viewport().installEventFilter(self)
 
     def retranslate_ui(self):
         self._rebuild()
@@ -371,75 +374,115 @@ class ImageGrid(QWidget):
         self._tag_filters = tag_filters or {}
         self._selected.clear()
         self._rebuild()
+        # Replacing data clears selection; keep action targets in sync with cards.
+        self.selection_changed.emit(set())
 
     def set_columns(self, cols: int):
-        self._cols = cols
-        self._rebuild()
+        cols = max(1, int(cols))
+        if cols != self._cols:
+            self._cols = cols
+            self._rebuild()
 
     def set_tag_filters(self, filters: dict):
-        self._tag_filters = filters
+        active = {key: True for key, value in filters.items() if value}
+        if active == self._tag_filters:
+            return
+        self._tag_filters = active
         self._rebuild()
 
     def _rebuild(self):
-        self._cards.clear()
-        while self._grid_layout.count():
-            item = self._grid_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        if self._rebuilding:
+            return
+        self._reorder_timer.stop()
+        self._rebuilding = True
+        self.rebuild_count += 1
+        try:
+            for card in self._cards.values():
+                card.hide()
+                card.deleteLater()
+            self._cards.clear()
+            for header in self._headers:
+                header.deleteLater()
+            self._headers.clear()
+            active = {tag for tag, enabled in self._tag_filters.items() if enabled}
+            matched, rest = [], []
+            for idx, image in enumerate(self._images):
+                (matched if not active or active.intersection(image['tags']) else rest).append(idx)
+            self._sections = []
+            y = 8
+            for indices, title in ((matched, 'images_with_tags'), (rest, 'images_without_tags')):
+                if not indices:
+                    continue
+                if active:
+                    header = QLabel(tr(title) + ': ' + ', '.join(sorted(active)), self._container)
+                    header._virtual_y = y
+                    self._headers.append(header)
+                    y += 32
+                self._sections.append((y, indices))
+                y += ((len(indices) + self._cols - 1) // self._cols) * self._row_height
+            self._virtual_height = max(1, y)
+            # QWidget coordinates are limited (~16 million pixels). Map the
+            # scrollbar to logical rows instead of allocating a taller canvas.
+            self._container.setMinimumSize(self._cols * (self._img_width + 24) + 16,
+                                           min(self._virtual_height, 8_000_000))
+        finally:
+            self._rebuilding = False
+        self._update_visible()
 
-        # Reset bộ đếm thời gian cho lần rebuild này
-        self._rebuild_start_time = time.perf_counter()
-        self._pending_render_count = len(self._images)
-        self._card_render_times = {}
+    def eventFilter(self, watched, event):
+        if event.type() in (QEvent.Resize, QEvent.Show):
+            self._update_visible()
+        return super().eventFilter(watched, event)
 
-        active_filters = [t for t, v in self._tag_filters.items() if v]
+    def _update_visible(self, *_):
+        if self._rebuilding:
+            return
+        bar = self.scroll_area.verticalScrollBar()
+        physical_top = bar.value()
+        view_height = self.scroll_area.viewport().height()
+        logical_range = max(0, self._virtual_height - view_height)
+        physical_range = max(1, self._container.height() - view_height)
+        top = round(physical_top * logical_range / physical_range)
+        bottom = top + view_height
+        scale = max(1, logical_range / physical_range)
+        bar.setSingleStep(max(1, round(40 / scale)))
+        bar.setPageStep(max(1, round(view_height / scale)))
+        for header in self._headers:
+            header.setVisible(top - 32 <= header._virtual_y <= bottom)
+            if header.isVisible():
+                header.setGeometry(8, physical_top + header._virtual_y - top,
+                                   max(300, self.scroll_area.viewport().width() - 16), 28)
+        width = max(self._img_width + 16, (self._container.width() - 16) // self._cols)
+        wanted = {}
+        for start, indices in self._sections:
+            rows = (len(indices) + self._cols - 1) // self._cols
+            first = max(0, (top - start) // self._row_height - 1)
+            last = min(rows, (bottom - start) // self._row_height + 2)
+            for position in range(first * self._cols, min(len(indices), last * self._cols)):
+                idx = indices[position]
+                wanted[idx] = (8 + position % self._cols * width,
+                               start + position // self._cols * self._row_height)
+        for idx in list(self._cards):
+            if idx not in wanted:
+                card = self._cards.pop(idx)
+                card.hide()
+                card.deleteLater()
+        keys = []
+        for idx, (x, y) in wanted.items():
+            card = self._cards.get(idx)
+            if card is None:
+                card = self._make_card(idx, self._images[idx])
+                card.setParent(self._container)
+            card.setGeometry(x, physical_top + y - top, width - 10, self._row_height - 10)
+            card.show()
+            keys.append((self._images[idx].get('path', ''), self._img_width))
+        self.thumbnails.set_visible(keys)
 
-        with_tags = []
-        without_tags = []
-        for idx, img in enumerate(self._images):
-            if active_filters:
-                if any(t in img['tags'] for t in active_filters):
-                    with_tags.append((idx, img))
-                else:
-                    without_tags.append((idx, img))
-            else:
-                with_tags.append((idx, img))
-
-        row = 0
-        if with_tags and active_filters:
-            header = QLabel( tr("images_with_tags") + f": {', '.join(active_filters)}" )
-            header.setStyleSheet("background:#4CAF50; color:white; font-weight:bold; padding:6px;")
-            self._grid_layout.addWidget(header, row, 0, 1, self._cols)
-            row += 1
-
-        for grid_i, (idx, img) in enumerate(with_tags):
-            card = self._make_card(idx, img)
-            self._grid_layout.addWidget(card, row + grid_i // self._cols, grid_i % self._cols)
-        if with_tags:
-            row += ((len(with_tags) - 1) // self._cols) + 1
-
-        if without_tags and active_filters:
-            sep = QFrame()
-            sep.setFrameShape(QFrame.HLine)
-            self._grid_layout.addWidget(sep, row, 0, 1, self._cols)
-            row += 1
-
-            header2 = QLabel( tr("images_without_tags") + f": {', '.join(active_filters)}" )
-            header2.setStyleSheet("background:#f44336; color:white; font-weight:bold; padding:6px;")
-            self._grid_layout.addWidget(header2, row, 0, 1, self._cols)
-            row += 1
-
-            for grid_i, (idx, img) in enumerate(without_tags):
-                card = self._make_card(idx, img)
-                self._grid_layout.addWidget(card, row + grid_i // self._cols, grid_i % self._cols)
-
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self._grid_layout.addWidget(spacer, self._grid_layout.rowCount(), 0, 1, self._cols)
-
-        # Nếu không có ảnh nào (không có card nào cần render), in thống kê ngay
-        if self._pending_render_count == 0:
-            self._print_grid_stats()
+    @Slot(object, object)
+    def _thumbnail_ready(self, key, image):
+        for card in self._cards.values():
+            if (card.img_data.get('path', ''), card.img_width) == key:
+                card.set_thumbnail(image)
 
     def _make_card(self, idx: int, img: dict) -> ImageCard:
         card = ImageCard(idx, img, self._img_width, self._tag_filters)
@@ -448,35 +491,10 @@ class ImageGrid(QWidget):
         card.tag_remove_requested.connect(self._on_tag_remove)
         card.tag_insert_requested.connect(self.tag_insert_requested)
         card.preview_requested.connect(self._on_preview_requested)
-        card.render_finished.connect(self._on_card_render_finished)
         if idx in self._selected:
             card.set_selected(True)
         self._cards[idx] = card
         return card
-
-    def _on_card_render_finished(self, idx: int, elapsed: float):
-        self._card_render_times[idx] = elapsed
-        if len(self._card_render_times) >= self._pending_render_count:
-            self._print_grid_stats()
-
-    def _print_grid_stats(self):
-        n = len(self._images)
-        total_time = (
-            time.perf_counter() - self._rebuild_start_time
-            if self._rebuild_start_time is not None else 0.0
-        )
-        times = list(self._card_render_times.values())
-        avg_per_card = (sum(times) / len(times)) if times else 0.0
-        max_tags = max(
-            (len(img.get('tags', []) or []) for img in self._images),
-            default=0
-        )
-        print(
-            f"[info] avg/card: {avg_per_card*1000:.1f} ms | "
-            f"số ảnh: {n} | "
-            f"số lượng tag tối đa mỗi card: {max_tags} | "
-            f"tổng thời gian tất cả {n} ảnh: {total_time*1000:.1f} ms"
-        )
 
     def _on_preview_requested(self, idx: int):
         if idx < len(self._images):
@@ -517,6 +535,15 @@ class ImageGrid(QWidget):
     def refresh_card(self, idx: int):
         if idx in self._cards:
             self._cards[idx].refresh_tags()
+        if any(self._tag_filters.values()):
+            self._reorder_timer.start(0)
+
+    def refresh_tags(self):
+        for card in self._cards.values():
+            card.refresh_tags()
+        if any(self._tag_filters.values()):
+            self._reorder_timer.start(0)
+
 
     def get_selected(self) -> set:
         return set(self._selected)

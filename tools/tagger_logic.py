@@ -29,13 +29,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Callable, Optional
-
-# gradio_client – only needed for API mode
-try:
-    from gradio_client import Client as GradioClient
-    _HAS_GRADIO_CLIENT = True
-except ImportError:
-    _HAS_GRADIO_CLIENT = False
+from file_formats import SUPPORTED_FORMATS, normalize_caption_extension
 
 import numpy as np
 from PIL import Image
@@ -61,7 +55,7 @@ except ImportError:
 # ──────────────────────────────────────────────────────────────
 #  Constants
 # ──────────────────────────────────────────────────────────────
-IMAGE_EXTENSIONS: set[str] = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
+IMAGE_EXTENSIONS: set[str] = set(SUPPORTED_FORMATS)
 MODEL_FILENAME   = "model.onnx"
 TAGS_FILENAME    = "selected_tags.csv"
 MODEL_INPUT_SIZE = 448   # WD14 standard input resolution
@@ -169,7 +163,7 @@ def run_tagger(
                 )
 
                 # 6f. Ghi cặp .txt MỚI vào temp folder (không ghi vào folder thật).
-                #     Với write_mode="append", merge dựa trên nội dung .txt GỐC
+                #     Khi bật append_tags, merge dựa trên nội dung .txt GỐC
                 #     hiện có (out_path) vì temp chưa từng có caption nào.
                 tmp_caption_path = tmp_dir / out_path.name
                 final_tags = _write_caption(
@@ -197,115 +191,6 @@ def run_tagger(
     _cb(total, total, f"Done – {total} images processed.")
     return results
 
-def run_tagger_api(
-    config: dict,
-    progress_cb: Optional[Callable[[int, int, str], None]] = None,
-) -> list[dict] | None:
-    """
-    Run WD14 tagging via the Kohya_ss Gradio API (/caption_images_3).
-
-    Requires:  pip install gradio_client
-
-    The kohya_ss API does NOT return per-image tag lists — it writes caption
-    files directly into *train_data_dir* on the server side.  Therefore this
-    function returns None (no in-memory results to merge back into the UI).
-    The caller in main_window._on_tagging_started already handles None gracefully.
-
-    Parameters
-    ----------
-    config       : dict produced by WaifuTaggerWindow.tagging_started
-    progress_cb  : optional callable(current, total, message)
-    """
-    _cb = progress_cb or (lambda *_: None)
-
-    if not _HAS_GRADIO_CLIENT:
-        raise ImportError(
-            "gradio_client is not installed.\n"
-            "Install with:  pip install gradio_client"
-        )
-
-    base_url = config.get("api_url", "http://127.0.0.1:7860").rstrip("/")
-
-    # ── Build the 22 named parameters exactly as documented ───────────────
-    # Source: kohya_ss /caption_images_3  (api_name="/caption_images_3")
-    train_data_dir   = config.get("target_folder", "")
-    caption_extension = config.get("ext", ".txt")          # ".cap" | ".caption" | ".txt"
-    batch_size       = float(config.get("batch_size", 1))
-    general_threshold = float(config.get("gen_threshold", 0.35))
-    character_threshold = float(config.get("char_threshold", 0.35))
-    repo_id          = config.get("repo_id", "SmilingWolf/wd-v1-4-convnextv2-tagger-v2")
-    recursive        = bool(config.get("include_subfolders", False))
-    max_workers      = float(config.get("max_data_loader_n_workers", 2))
-    debug            = bool(config.get("debug", True))
-    undesired_tags   = ", ".join(config.get("undesired_tags", []))
-    frequency_tags   = bool(config.get("frequency_tags", True))
-    always_first_tags = ", ".join(config.get("prefix_tags", []))
-    use_onnx         = True                                 # always True for speed
-    append_tags      = bool(config.get("append_tags", False))
-    force_download   = bool(config.get("force_download", False))
-    caption_separator = config.get("separator", ", ")
-    tag_replacement  = config.get("tag_replacement", "")   # "old1,new1;old2,new2" or ""
-    character_tag_expand = bool(config.get("char_expand", False))
-    use_rating_tags  = bool(config.get("use_rating", False))
-    use_rating_tags_as_last_tag = bool(config.get("rating_as_last", False))
-    remove_underscore = bool(config.get("remove_underscore", True))
-    thresh           = float(config.get("gen_threshold", 0.35))   # global fallback threshold
-
-    try:
-        _cb(0, 1, f"Đang kết nối tới Kohya_ss tại {base_url} …")
-        client = GradioClient(base_url)
-
-        _cb(0, 1, f"Đang gửi yêu cầu tagging cho: {train_data_dir}")
-        result = client.predict(
-            train_data_dir=train_data_dir,
-            caption_extension=caption_extension,
-            batch_size=batch_size,
-            general_threshold=general_threshold,
-            character_threshold=character_threshold,
-            repo_id=repo_id,
-            recursive=recursive,
-            max_data_loader_n_workers=max_workers,
-            debug=debug,
-            undesired_tags=undesired_tags,
-            frequency_tags=frequency_tags,
-            always_first_tags=always_first_tags,
-            onnx=use_onnx,
-            append_tags=append_tags,
-            force_download=force_download,
-            caption_separator=caption_separator,
-            tag_replacement=tag_replacement,
-            character_tag_expand=character_tag_expand,
-            use_rating_tags=use_rating_tags,
-            use_rating_tags_as_last_tag=use_rating_tags_as_last_tag,
-            remove_underscore=remove_underscore,
-            thresh=thresh,
-            api_name="/caption_images_3",
-        )
-
-        _cb(1, 1, f"Kohya_ss hoàn thành! Kết quả: {result}")
-        # kohya_ss writes caption files directly to disk on the server side.
-        # We now read back the .txt files so that main_window can:
-        #   (a) sync in-memory tags without a full folder reload
-        #   (b) push a proper undo/redo history entry
-        _cb(1, 1, "Đang đọc lại file caption từ disk để đồng bộ memory…")
-        image_paths = _collect_images(config)
-        ext = config.get("ext", ".txt")
-        results_api: list[dict] = []
-        for img_path in image_paths:
-            img_path = Path(img_path)
-            txt_path = img_path.with_suffix(ext)
-            if txt_path.exists():
-                text = txt_path.read_text(encoding="utf-8").strip()
-                tags = [t.strip() for t in text.split(",") if t.strip()]
-                results_api.append({"path": str(img_path), "tags": tags, "skipped": False, "error": None})
-            else:
-                results_api.append({"path": str(img_path), "tags": [], "skipped": True, "error": "caption file not found"})
-        return results_api
-
-    except Exception as exc:
-        _cb(0, 1, f"Lỗi khi gọi Kohya_ss API: {exc}")
-        raise
-
 # ──────────────────────────────────────────────────────────────
 #  Model resolution
 # ──────────────────────────────────────────────────────────────
@@ -329,6 +214,15 @@ def _resolve_model(config: dict) -> tuple[str, str]:
             f"Expected at: {sibling}\n"
             f"Please provide it via the 'Tags CSV' field."
         )
+
+    # Offline model optionally included by the packaging script.
+    try:
+        from app_paths import bundled_model
+        bundled = bundled_model(config.get('repo_id'))
+    except ImportError:
+        bundled = None  # External worker uses only its explicit model paths.
+    if bundled and not config.get('force_download'):
+        return bundled
 
     # Download from HuggingFace Hub
     if not _HAS_HF:
@@ -542,7 +436,7 @@ def _expand_parens(name: str) -> str:
 # ──────────────────────────────────────────────────────────────
 
 def _caption_path(img_path: Path, config: dict) -> Path:
-    ext  = config.get("ext", ".txt")
+    ext = '.' + normalize_caption_extension(config.get("ext", ".txt"))
     stem = img_path.stem
     filename = f"{stem}{ext}"
 
@@ -557,21 +451,23 @@ def _write_caption(
 ) -> list[str]:
     """Write caption file and return the final list of tags actually written.
 
-    For append mode this is the merged (existing + new) list.
-    For overwrite/skip this is just `tags` as-is.
+    append_tags (the UI checkbox) or legacy write_mode="append" merges
+    existing + new tags. Otherwise the result is `tags` as-is.
+    The local pipeline handles write_mode="skip" before calling this helper.
     The return value lets callers keep in-memory tag state in sync with disk.
 
-    merge_source : file to read the *existing* tags from when write_mode is
-        "append". Defaults to out_path itself (old behaviour). Used by the
+    merge_source : file to read the *existing* tags from when appending. Defaults to out_path itself (old behaviour). Used by the
         temp-folder workflow, where out_path lives in the scratch dir and has
         no prior content, so the merge base must come from the real .txt
         next to the original image instead.
     """
+    normalize_caption_extension(out_path.suffix)
     sep       = config.get("separator", ", ")
     write_mode = config.get("write_mode", "overwrite")
     source     = merge_source if merge_source is not None else out_path
 
-    if write_mode == "append" and source.exists():
+    append = bool(config.get("append_tags", False)) or write_mode == "append"
+    if append and source.exists():
         existing_text = source.read_text(encoding="utf-8").strip()
         existing_tags = [t.strip() for t in existing_text.split(",") if t.strip()]
         # merge: keep existing, append new ones that aren't already there
@@ -599,11 +495,11 @@ def _read_back_tags_when_ready(
     hợp file đã sẵn sàng ngay lập tức; vòng lặp này chỉ để đảm bảo an toàn
     trên các hệ thống file mạng/chậm trước khi trích xuất lại nội dung.
     """
-    expected_content = ", ".join(expected_tags) if isinstance(expected_tags, list) else str(expected_tags)
     deadline = time.monotonic() + timeout
 
     while time.monotonic() < deadline:
-        if caption_path.exists() and caption_path.stat().st_size > 0:
+        # An empty caption is ready too when inference returned no tags.
+        if caption_path.exists() and (not expected_tags or caption_path.stat().st_size > 0):
             break
         time.sleep(interval)
 
@@ -635,6 +531,8 @@ def _collect_images(config: dict) -> list[Path]:
         base = root_folder if root_folder.is_dir() else target_folder
         paths: list[Path] = []
         for dirpath, _dirs, files in os.walk(base):
+            from backup_manager import BACKUP_DIR
+            _dirs[:] = [d for d in _dirs if d != BACKUP_DIR]
             for f in sorted(files):
                 p = Path(dirpath) / f
                 if p.suffix.lower() in IMAGE_EXTENSIONS:

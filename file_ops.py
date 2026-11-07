@@ -4,8 +4,10 @@ UPDATED: Uses single fixed extension (load_extension setting)
 """
 import os
 import time
-
-SUPPORTED_FORMATS = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')
+import tempfile
+from pathlib import Path
+from backup_manager import backup_folder, BACKUP_DIR
+from file_formats import SUPPORTED_FORMATS, normalize_caption_extension
 
 
 def _get_tag_extension() -> str:
@@ -16,13 +18,12 @@ def _get_tag_extension() -> str:
     try:
         from settings_manager import settings
         ext = settings.value("load_extension", "txt")
-        # Ensure no leading dot
-        return ext.lstrip('.') if ext else "txt"
+        return normalize_caption_extension(ext or "txt")
     except ImportError:
         return "txt"
 
 
-def load_tags(txt_path: str) -> list:
+def load_tags(txt_path: str, extension: str = None) -> list:
     """
     Đọc tags từ file với extension được cài đặt.
     
@@ -33,7 +34,7 @@ def load_tags(txt_path: str) -> list:
         list: Danh sách tags
     """
     # Lấy extension từ settings
-    ext = _get_tag_extension()
+    ext = normalize_caption_extension(extension if extension is not None else _get_tag_extension())
     
     # Thay thế extension từ base path
     base_path = os.path.splitext(txt_path)[0]
@@ -66,22 +67,41 @@ def save_tags(txt_path: str, tags: list) -> bool:
         bool: True nếu thành công, False nếu thất bại
     """
     # Lấy extension từ settings
-    ext = _get_tag_extension()
-    
-    base_path = os.path.splitext(txt_path)[0]
-    file_path = f"{base_path}.{ext}"
-    
     try:
-        with open(file_path, 'w', encoding='utf-8') as f:
-            # Ghi tags dạng comma-separated
-            f.write(', '.join(tags))
+        ext = normalize_caption_extension(_get_tag_extension())
+        base_path = os.path.splitext(txt_path)[0]
+        file_path = f"{base_path}.{ext}"
+        backup_folder(Path(file_path).parent, "save_tags")
+        _write_tags(file_path, tags)
         return True
     except Exception as e:
-        print(f"[ERROR] Failed to write {file_path}: {e}")
+        print(f"[ERROR] Failed to write tags for {txt_path}: {e}")
         return False
 
 
-def load_folder_images(folder: str) -> list:
+def _write_tags(file_path, tags):
+    """Atomic replacement; caller must complete the folder backup first."""
+    target = Path(file_path)
+    normalize_caption_extension(target.suffix)
+    if target.is_symlink():
+        raise ValueError(f"Refusing to overwrite symlink: {target}")
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
+                                         dir=target.parent, delete=False) as f:
+            temporary = f.name
+            f.write(', '.join(tags))
+            f.flush()
+            os.fsync(f.fileno())
+        if target.exists():
+            os.chmod(temporary, target.stat().st_mode & 0o777)
+        os.replace(temporary, target)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def load_folder_images(folder: str, extension: str = None) -> list:
     """
     Tải danh sách ảnh từ một thư mục.
     Tags sẽ được load dựa trên extension cài đặt (load_extension setting).
@@ -92,7 +112,7 @@ def load_folder_images(folder: str) -> list:
     Returns:
         list: Danh sách dict chứa thông tin ảnh
     """
-    ext = _get_tag_extension()
+    ext = normalize_caption_extension(extension if extension is not None else _get_tag_extension())
     
     start_time = time.perf_counter()
     images = []
@@ -101,7 +121,7 @@ def load_folder_images(folder: str) -> list:
             if file.lower().endswith(SUPPORTED_FORMATS):
                 img_path = os.path.join(folder, file)
                 txt_path = os.path.splitext(img_path)[0] + '.txt'  # Store base path
-                tags = load_tags(txt_path)
+                tags = load_tags(txt_path, extension=ext)
                 images.append({
                     'path': img_path,
                     'txt_path': txt_path,
@@ -132,12 +152,18 @@ def save_all_images(images: list) -> int:
     Returns:
         int: Số file đã lưu thành công
     """
+    pending = [img for img in images if img.get('modified', False)]
+    ext = normalize_caption_extension(_get_tag_extension())
+    # Back up all involved folders before the first write in this action.
+    folders = sorted({str(Path(img['txt_path']).resolve().parent) for img in pending})
+    for folder in folders:
+        backup_folder(folder, "save_all_images")
     count = 0
-    for img in images:
-        if img.get('modified', False):
-            if save_tags(img['txt_path'], img['tags']):
-                img['modified'] = False
-                count += 1
+    for img in pending:
+        file_path = os.path.splitext(img['txt_path'])[0] + '.' + ext
+        _write_tags(file_path, img['tags'])
+        img['modified'] = False
+        count += 1
     return count
 
 
@@ -158,7 +184,7 @@ def populate_folder_tree(path: str) -> dict:
         children = []
         for item in sorted(os.listdir(path)):
             item_path = os.path.join(path, item)
-            if os.path.isdir(item_path):
+            if os.path.isdir(item_path) and item != BACKUP_DIR:
                 children.append(item_path)
                 tree.update(populate_folder_tree(item_path))
         tree[path] = children

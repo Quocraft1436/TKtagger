@@ -13,8 +13,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 
+from settings_manager import settings
 from i18n import tr
-
+from file_formats import SUPPORTED_FORMATS, normalize_caption_extension
 
 class SettingsDialog(QDialog):
     """Settings/Preferences dialog for TKtagger"""
@@ -22,8 +23,7 @@ class SettingsDialog(QDialog):
     def __init__(self, parent=None, main_window=None):
         super().__init__(parent)
         self.main_window = main_window
-        from PySide6.QtCore import QSettings
-        self.settings = QSettings("settings.ini", QSettings.IniFormat)
+        self.settings = settings
         
         self.setWindowTitle(tr("settings_title"))
         self.setGeometry(100, 100, 550, 450)
@@ -52,13 +52,13 @@ class SettingsDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         
-        ok_btn = QPushButton("OK")
+        ok_btn = QPushButton(tr("ldl_confirm"))
         ok_btn.clicked.connect(self._on_ok)
         
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton(tr("ldl_cancel"))
         cancel_btn.clicked.connect(self.reject)
         
-        apply_btn = QPushButton("Apply")
+        apply_btn = QPushButton(tr("settings_apply"))
         apply_btn.clicked.connect(self._on_apply)
         
         btn_layout.addWidget(ok_btn)
@@ -81,7 +81,6 @@ class SettingsDialog(QDialog):
         self.lang_combo = QComboBox()
         
         # Load supported languages
-        from settings_manager import settings
         languages = settings.get_supported_languages()
         for code, label in languages:
             self.lang_combo.addItem(label, code)
@@ -205,7 +204,7 @@ class SettingsDialog(QDialog):
     
     def _load_settings(self):
         """Load current settings from QSettings"""
-        current_lang = self.settings.value("language", "en")
+        current_lang = self.settings.language
         for i in range(self.lang_combo.count()):
             if self.lang_combo.itemData(i) == current_lang:
                 self.lang_combo.setCurrentIndex(i)
@@ -228,58 +227,75 @@ class SettingsDialog(QDialog):
     
     def _on_apply(self):
         """Apply settings without closing dialog"""
-        self._save_settings()
-        QMessageBox.information(self, "Success", "Settings saved successfully!")
+        if self._save_settings():
+            QMessageBox.information(self, tr("save_success"), tr("settings_saved_msg"))
     
     def _on_ok(self):
         """Apply settings and close"""
-        self._save_settings()
-        self.accept()
+        if self._save_settings():
+            self.accept()
         
     def _save_settings(self):
         """Save settings to QSettings"""
-        lang_code = self.lang_combo.currentData()
-        self.settings.setValue("language", lang_code)
-
-        if self.main_window and hasattr(self.main_window, 'switch_language'):
-            self.main_window.switch_language(lang_code)
-
         old_ext = self.settings.value("load_extension", "txt")
 
-        if self.radio_txt.isChecked():
-            ext = "txt"
-        elif self.radio_cap.isChecked():
-            ext = "cap"
-        else:
+        ext_map = {
+            self.radio_txt: "txt",
+            self.radio_cap: "cap",
+        }
+
+        # 2. Find the selected radio button dynamically
+        ext = next((ext for radio, ext in ext_map.items() if radio.isChecked()), None)
+
+        if ext is None:
+            # Handle custom extension case
             ext = self.custom_ext_input.text().strip()
+            
             if not ext:
                 QMessageBox.warning(
                     self,
-                    "Validation Error",
-                    "Please enter a custom extension or select another format."
+                    tr("ldl_error"),
+                    tr("settings_custom_required")
                 )
-                return
-            ext = ext.lstrip('.')
+                return False
+            
+            if '.' + ext.strip().lstrip('.').lower() in SUPPORTED_FORMATS:
+                QMessageBox.critical(
+                    self,
+                    tr("ldl_error"),
+                    tr("settings_image_ext_invalid")
+                )
+                return False
 
-        self.settings.setValue("load_extension", ext)
+        try:
+            ext = normalize_caption_extension(ext)
+        except ValueError as exc:
+            QMessageBox.warning(self, tr("ldl_error"), str(exc))
+            return False
+
+        lang_code = self.lang_combo.currentData()
+        if self.main_window and hasattr(self.main_window, 'switch_language'):
+            self.main_window.switch_language(lang_code)
+        else:
+            self.settings.language = lang_code
+        self.settings.set_value("load_extension", ext)
 
         if old_ext != ext:
             QMessageBox.information(
                 self,
-                "Restart Required",
-                "The Load Extension setting has been changed.\n\n"
-                "Please restart the application for the change to take effect."
+                tr("settings_restart_title"),
+                tr("settings_restart_msg")
             )
 
-        self.settings.setValue("max_history", self.history_spin.value())
+        self.settings.set_value("max_history", self.history_spin.value())
+        return True
 
     def _on_clear_history(self):
         """Clear all undo/redo history"""
         confirm = QMessageBox.question(
             self,
-            "Clear History?",
-            "Are you sure you want to clear all undo/redo history?\n"
-            "This action cannot be undone.",
+            tr("settings_clear_history_group"),
+            tr("settings_clear_history_confirm"),
             QMessageBox.Yes | QMessageBox.No
         )
         
@@ -288,6 +304,6 @@ class SettingsDialog(QDialog):
                 self.main_window.history.clear()
                 self.main_window._undo_folders.clear()
                 self.main_window._redo_folders.clear()
-                QMessageBox.information(self, "Success", "History cleared!")
+                QMessageBox.information(self, tr("save_success"), tr("settings_history_cleared"))
             else:
-                QMessageBox.warning(self, "Error", "Could not clear history")
+                QMessageBox.warning(self, tr("ldl_error"), tr("settings_history_clear_failed"))

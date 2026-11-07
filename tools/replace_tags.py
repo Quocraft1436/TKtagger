@@ -101,14 +101,16 @@ def run_replace_tags(win) -> bool:
     before = win._snapshot()
     affected = 0
     for idx, img in enumerate(win.images):
-        modified = False
-        for old_tag, new_tag in replace_map.items():
-            if old_tag in img['tags']:
-                img['tags'].remove(old_tag)
-                if new_tag not in img['tags']:
-                    img['tags'].append(new_tag)
-                modified = True
-        if modified:
+        original_tags = img['tags']
+        if not any(tag in replace_map for tag in original_tags):
+            continue
+        # Map each original tag once; never feed replacement output back into
+        # another rule. Preserve order and collapse shared destinations.
+        updated_tags = list(dict.fromkeys(
+            replace_map.get(tag, tag) for tag in original_tags
+        ))
+        if updated_tags != original_tags:
+            img['tags'] = updated_tags
             img['modified'] = True
             win.image_grid.refresh_card(idx)
             affected += 1
