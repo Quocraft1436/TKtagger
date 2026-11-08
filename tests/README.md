@@ -1,12 +1,12 @@
-# ATE — kiểm thử tự động và stress test ảnh giả
+# Automated Tests — kiểm thử tự động cho PySide6
 
 Chạy từ thư mục gốc dự án, dùng Python đã cài PySide6. Không cần model AI,
 Pillow, pytest hay kết nối mạng.
 
-Chạy toàn bộ ATE (unit/regression tests, lưới ảo 10.000 ảnh và các lô nhỏ):
+Chạy toàn bộ kiểm thử tự động (unit/regression tests, lưới ảo 10.000 ảnh và các lô nhỏ):
 
 ```bash
-python -m tests.run_ate
+python -m tests.run_tests
 ```
 
 Mặc định tạo 16 mẫu PNG trong RAM; mỗi ảnh có metadata riêng, Qt giải mã và vẽ
@@ -17,7 +17,7 @@ không tạo widget cho toàn bộ dataset. Thumbnail dùng worker với cache t
 Bài mẫu 10.000 PNG và 10.000 caption trên ổ đĩa, 256×256, 25 tag/ảnh:
 
 ```bash
-python -m tests.ate --storage disk --count 10000 --size 256 --tags 24 --mode virtual-grid --max-render-seconds 300 --max-rss-mb 1024
+python -m tests.gui_benchmark --storage disk --count 10000 --size 256 --tags 24 --mode virtual-grid --max-render-seconds 300 --max-rss-mb 1024
 ```
 
 `--tags` là số tag chung, cộng thêm một tag nhóm cho mỗi ảnh. File PNG dùng 16
@@ -28,9 +28,9 @@ Các lựa chọn khác:
 
 ```bash
 python -m unittest discover -s tests -v
-python -m tests.ate --count 10000 --mode virtual-grid
-python -m tests.ate --count 1000 --mode batch --batch-size 100
-python -m tests.run_ate --disk-count 10000
+python -m tests.gui_benchmark --count 10000 --mode virtual-grid
+python -m tests.gui_benchmark --count 1000 --mode batch --batch-size 100
+python -m tests.run_tests --disk-count 10000
 ```
 
 Mỗi lần chạy tạo `tests/artifacts/run_<timestamp>_<id>/` chứa `report.json`,

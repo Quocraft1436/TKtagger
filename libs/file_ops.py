@@ -6,8 +6,8 @@ import os
 import time
 import tempfile
 from pathlib import Path
-from backup_manager import backup_folder, BACKUP_DIR
-from file_formats import SUPPORTED_FORMATS, normalize_caption_extension
+from libs.backup_manager import backup_folder, BACKUP_DIR
+from libs.file_formats import SUPPORTED_FORMATS, normalize_caption_extension
 
 
 def _get_tag_extension() -> str:
@@ -16,7 +16,7 @@ def _get_tag_extension() -> str:
     Returns: "txt", "cap", or custom extension
     """
     try:
-        from settings_manager import settings
+        from libs.settings_manager import settings
         ext = settings.value("load_extension", "txt")
         return normalize_caption_extension(ext or "txt")
     except ImportError:

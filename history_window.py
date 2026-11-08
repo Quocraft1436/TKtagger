@@ -7,12 +7,13 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
-from i18n import tr
+from libs.i18n import tr
 
 
 class HistoryWindow(QDockWidget):
     def __init__(self, history_manager, parent=None):
         super().__init__(parent)
+        self.setObjectName("HistoryDock")
         self.history = history_manager
 
         self.main_widget = QWidget()

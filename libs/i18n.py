@@ -1,6 +1,6 @@
 """
 i18n.py - Internationalization helper for TKtagger
-Loads translations from separate language files in the i18n/ directory.
+Loads translations from separate language files in the lang/ directory.
 Supports individual language files (en.json, vi.json, etc.)
 """
 
@@ -8,6 +8,8 @@ import json
 import os
 import inspect
 import re
+
+from libs.app_paths import resource_path
 
 _LANG = "en"             # default language
 _STRINGS: dict = {}      # cache for loaded language strings
@@ -20,7 +22,7 @@ _WARN_I18N = True
 
 def _lang_dir() -> str:
     """Return the language directory."""
-    return os.path.join(os.path.dirname(__file__), "lang")
+    return str(resource_path("lang"))
 
 
 def _load_language(lang: str) -> dict:

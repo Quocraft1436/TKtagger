@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
 from main_window import MainWindow
-from history_manager import HistoryManager
+from libs.history_manager import HistoryManager
 
 
 class FolderSwitchTests(unittest.TestCase):
@@ -45,7 +45,7 @@ class FolderSwitchTests(unittest.TestCase):
         self.win._populate_tree = Mock()
         self.win.save_to_recent = Mock()
         for target, kwargs in [
-            ('file_ops._get_tag_extension', {'return_value': 'txt'}),
+            ('libs.file_ops._get_tag_extension', {'return_value': 'txt'}),
             ('main_window.QMessageBox.information', {}),
             ('main_window.QMessageBox.critical', {}),
         ]:
@@ -86,13 +86,13 @@ class FolderSwitchTests(unittest.TestCase):
         self.assertNotIn(str(self.a), self.win._folder_cache)
 
     def test_save_failure_retains_cache_and_navigation(self):
-        with patch('file_ops.backup_folder', side_effect=OSError('backup unavailable')):
+        with patch('libs.file_ops.backup_folder', side_effect=OSError('backup unavailable')):
             self.switch(QMessageBox.Yes)
         self.assert_retained()
 
     def test_write_failure_retains_cache_and_navigation(self):
-        with patch('file_ops.backup_folder'), \
-             patch('file_ops._write_tags', side_effect=OSError('disk full')):
+        with patch('libs.file_ops.backup_folder'), \
+             patch('libs.file_ops._write_tags', side_effect=OSError('disk full')):
             self.switch(QMessageBox.Yes)
         self.assert_retained()
 
@@ -104,9 +104,9 @@ class FolderSwitchTests(unittest.TestCase):
         return event
 
     def test_failed_backup_or_write_prevents_close(self):
-        for target in ('file_ops.backup_folder', 'file_ops._write_tags'):
+        for target in ('libs.file_ops.backup_folder', 'libs.file_ops._write_tags'):
             with self.subTest(target=target), \
-                 patch('file_ops.backup_folder'), \
+                 patch('libs.file_ops.backup_folder'), \
                  patch(target, side_effect=OSError('save unavailable')):
                 event = self.close_with_reply(QMessageBox.Yes)
                 self.assertFalse(event.isAccepted())
@@ -138,14 +138,14 @@ class FolderSwitchTests(unittest.TestCase):
                       txt_path=str(second_caption), filename='second.png',
                       tags=['second edited'], modified=True)
         self.win._folder_cache[str(self.a)].append(second)
-        from file_ops import _write_tags
+        from libs.file_ops import _write_tags
 
         def fail_second(path, tags):
             if Path(path) == second_caption:
                 raise OSError('disk full')
             return _write_tags(path, tags)
 
-        with patch('file_ops._write_tags', side_effect=fail_second):
+        with patch('libs.file_ops._write_tags', side_effect=fail_second):
             event = self.close_with_reply(QMessageBox.Yes)
         self.assertFalse(event.isAccepted())
         self.assertEqual(self.win.current_folder, str(self.empty))

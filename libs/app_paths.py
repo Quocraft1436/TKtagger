@@ -8,7 +8,7 @@ DEFAULT_REPO = 'SmilingWolf/wd-v1-4-convnextv2-tagger-v2'
 
 
 def resource_path(*parts):
-    return Path(__file__).resolve().parent.joinpath(*parts)
+    return Path(__file__).resolve().parent.parent.joinpath(*parts)
 
 
 def user_file(name):

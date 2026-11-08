@@ -23,7 +23,7 @@ class StartupPathTests(unittest.TestCase):
     def test_all_bundled_icons_load_from_unrelated_directory(self):
         self.run_elsewhere('''
 from PySide6.QtWidgets import QApplication
-from table_icon import ICON_MAP, get_icon
+from libs.table_icon import ICON_MAP, get_icon
 app = QApplication([])
 for name in ICON_MAP:
     assert not get_icon(name).isNull(), name

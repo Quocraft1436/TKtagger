@@ -12,10 +12,10 @@ from unittest.mock import patch
 
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QPushButton
-import i18n
+from libs import i18n
 from main_window import MainWindow
 from settings_dialog import SettingsDialog
-from settings_manager import settings
+from libs.settings_manager import settings
 from tools.waifu_tagger_window import WaifuTaggerWindow
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,7 +64,7 @@ class LanguageTests(unittest.TestCase):
                 data = json.loads((ROOT / 'lang' / f'{code}.json').read_text())
                 self.assertEqual(data['language_name'], name)
                 self.assertEqual(supported[code], name)
-                for key in ('menu_file', 'settings_title', 'waifu_tool_hint', 'calc_rename_info', 'dict_hint_hidden'):
+                for key in ('menu_file', 'settings_title', 'waifu_tool_hint', 'calc_export_info', 'dict_hint_hidden'):
                     self.assertNotEqual(data[key], self.english[key])
                 i18n.set_language(code)
                 self.assertEqual(i18n.tr('status_selected', count=7), data['status_selected'].format(count=7))

@@ -3,7 +3,7 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
 from PySide6.QtCore import Qt
 
-from i18n import tr
+from libs.i18n import tr
 
 class UnderscoreSwapDialog(QDialog):
     """Dialog chọn kiểu đổi dấu cách <-> underscore."""

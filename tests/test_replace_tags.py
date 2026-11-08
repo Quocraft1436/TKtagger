@@ -8,7 +8,7 @@ from PySide6.QtCore import QTimer, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMainWindow
 from main_window import MainWindow
-from history_manager import HistoryManager
+from libs.history_manager import HistoryManager
 from tools.replace_tags import run_replace_tags
 
 

@@ -29,7 +29,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Callable, Optional
-from file_formats import SUPPORTED_FORMATS, normalize_caption_extension
+from libs.file_formats import SUPPORTED_FORMATS, normalize_caption_extension
 
 import numpy as np
 from PIL import Image
@@ -217,7 +217,7 @@ def _resolve_model(config: dict) -> tuple[str, str]:
 
     # Offline model optionally included by the packaging script.
     try:
-        from app_paths import bundled_model
+        from libs.app_paths import bundled_model
         bundled = bundled_model(config.get('repo_id'))
     except ImportError:
         bundled = None  # External worker uses only its explicit model paths.
@@ -531,7 +531,7 @@ def _collect_images(config: dict) -> list[Path]:
         base = root_folder if root_folder.is_dir() else target_folder
         paths: list[Path] = []
         for dirpath, _dirs, files in os.walk(base):
-            from backup_manager import BACKUP_DIR
+            from libs.backup_manager import BACKUP_DIR
             _dirs[:] = [d for d in _dirs if d != BACKUP_DIR]
             for f in sorted(files):
                 p = Path(dirpath) / f

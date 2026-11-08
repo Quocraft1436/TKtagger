@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QPushButton
 )
 from PySide6.QtCore import QCoreApplication
-from i18n import tr
+from libs.i18n import tr
 
 class AboutDialog(QDialog):
 

@@ -9,10 +9,11 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap, QPalette
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QApplication
 
-from settings_manager import settings
+from libs.app_paths import resource_path
+from libs.settings_manager import settings
 
 
-ICON_DIR = Path(__file__).resolve().parent / "icons"
+ICON_DIR = resource_path("icons")
 
 
 ICON_MAP = {

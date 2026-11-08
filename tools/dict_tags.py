@@ -20,7 +20,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QIcon
 
-from i18n import tr
+from libs.i18n import tr
 
 def _divider() -> QFrame:
     f = QFrame()

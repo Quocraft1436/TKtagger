@@ -11,9 +11,9 @@ from PySide6.QtWidgets import (
     QGroupBox, QScrollArea, QFileDialog, QWidget, QFrame, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal
-from i18n import tr
-from app_paths import build_info, bundled_model, local_ai_available
-from settings_manager import settings
+from libs.i18n import tr
+from libs.app_paths import build_info, bundled_model, local_ai_available
+from libs.settings_manager import settings
 from tools.external_tagger import discover_tool, validate_external_config
 
 # ── App-wide style constants (mirror what the rest of the app uses) ──────────

@@ -5,8 +5,8 @@ import locale
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QSettings, Signal
-from app_paths import user_file
-from i18n import normalize_language
+from libs.app_paths import resource_path, user_file
+from libs.i18n import normalize_language
 
 # ── Settings file path ───────────────────────────────────────────────────────
 SETTINGS_FILE = user_file("settings.ini")
@@ -89,7 +89,7 @@ class SettingsManager(QObject):
                 # Extract 2-letter language code (e.g., "vi" from "vi_VN")
                 lang = lang_code.split('_')[0].lower()
                 # Only return if we have that language file
-                lang_dir = Path(__file__).parent / "lang"
+                lang_dir = resource_path("lang")
                 if (lang_dir / f"{lang}.json").exists():
                     return lang
         except Exception:
@@ -180,7 +180,7 @@ class SettingsManager(QObject):
         Returns list of (code, name) tuples.
         e.g., [("en", "English"), ("vi", "Tiếng Việt")]
         """
-        lang_dir = Path(__file__).parent / "lang"
+        lang_dir = resource_path("lang")
         supported = []
         
         # Build a name map for language codes

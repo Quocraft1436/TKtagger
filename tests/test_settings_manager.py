@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from PySide6.QtCore import QSettings
-from settings_manager import settings
+from libs.settings_manager import settings
 
 
 class SettingsPersistenceTests(unittest.TestCase):

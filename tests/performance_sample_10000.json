@@ -1,6 +1,7 @@
 {
   "date": "2026-11-07",
-  "command": "QT_QPA_PLATFORM=offscreen python -m tests.ate --storage disk --count 10000 --size 256 --tags 24 --mode virtual-grid --max-render-seconds 300 --max-rss-mb 1024",
+  "command": "QT_QPA_PLATFORM=offscreen python -m tests.gui_benchmark --storage disk --count 10000 --size 256 --tags 24 --mode virtual-grid --max-render-seconds 300 --max-rss-mb 1024",
+  "original_command": "QT_QPA_PLATFORM=offscreen python -m tests.ate --storage disk --count 10000 --size 256 --tags 24 --mode virtual-grid --max-render-seconds 300 --max-rss-mb 1024",
   "virtual_grid": {
     "count": 10000,
     "rendered": 10000,

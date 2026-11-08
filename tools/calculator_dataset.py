@@ -1,5 +1,5 @@
 """
-calculator_dataset.py - Calculator for dataset balancing and renaming based on tagged image counts.
+calculator_dataset.py - Calculator for dataset balancing and trainer-specific dataset TOML export.
 """
 import os
 import re
@@ -7,30 +7,21 @@ import math
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView,
-    QSpinBox, QMessageBox, QAbstractItemView, QCheckBox, QSizePolicy,
+    QSpinBox, QMessageBox, QAbstractItemView, QCheckBox, QSizePolicy, QComboBox, QFileDialog,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSaveFile, QIODevice
 from PySide6.QtGui import QFont, QColor
 
-from i18n import tr
+from libs.i18n import tr
+from libs.settings_manager import settings
+from libs.file_formats import normalize_caption_extension
+from libs.dataset_config import dataset_images, build_dataset_toml
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
 
-IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff"}
-TAG_EXTS   = {".txt", ".caption"}
-
-
-def _count_tagged_images(folder: str) -> int:
-    try:
-        entries = os.listdir(folder)
-    except PermissionError:
-        return 0
-    stems_with_tag = {os.path.splitext(f)[0] for f in entries
-                      if os.path.splitext(f)[1].lower() in TAG_EXTS}
-    return sum(1 for f in entries
-               if os.path.splitext(f)[1].lower() in IMAGE_EXTS
-               and os.path.splitext(f)[0] in stems_with_tag)
+def _count_tagged_images(folder: str, caption_extension='.txt') -> int:
+    return sum(image.with_suffix(caption_extension).is_file() for image in dataset_images(folder))
 
 
 def _extract_repeat_from_name(folder_name: str):
@@ -39,13 +30,13 @@ def _extract_repeat_from_name(folder_name: str):
     return (int(m.group(1)), m.group(2)) if m else (None, folder_name)
 
 
-def _scan_folders(root: str) -> list:
+def _scan_folders(root: str, caption_extension=".txt") -> list:
     results = []
     root = os.path.normpath(root)
     for dirpath, dirnames, _ in os.walk(root):
-        from backup_manager import BACKUP_DIR
+        from libs.backup_manager import BACKUP_DIR
         dirnames[:] = sorted(d for d in dirnames if d != BACKUP_DIR)
-        count = _count_tagged_images(dirpath)
+        count = _count_tagged_images(dirpath, caption_extension)
         if count > 0:
             name = os.path.basename(dirpath)
             existing_repeat, base_name = _extract_repeat_from_name(name)
@@ -211,13 +202,36 @@ class CalcDatasetDialog(QDialog):
         srow.addStretch()
         root.addLayout(srow)
 
+        export_options = QHBoxLayout()
+        self._format_lbl = QLabel()
+        export_options.addWidget(self._format_lbl)
+        self._format_combo = QComboBox()
+        self._format_combo.addItem("kohya_ss / sd-scripts", "kohya")
+        self._format_combo.addItem("Musubi Tuner", "musubi")
+        export_options.addWidget(self._format_combo)
+        self._resolution_lbl = QLabel()
+        export_options.addWidget(self._resolution_lbl)
+        self._resolution_spin = QSpinBox()
+        self._resolution_spin.setRange(64, 8192)
+        self._resolution_spin.setSingleStep(64)
+        self._resolution_spin.setValue(1024)
+        export_options.addWidget(self._resolution_spin)
+        self._caption_lbl = QLabel()
+        export_options.addWidget(self._caption_lbl)
+        self._caption_combo = QComboBox()
+        extensions = list(dict.fromkeys([normalize_caption_extension(settings.value('load_extension', 'txt')), 'txt', 'cap', 'caption']))
+        self._caption_combo.addItems(['.' + ext for ext in extensions])
+        export_options.addWidget(self._caption_combo)
+        export_options.addStretch()
+        root.addLayout(export_options)
+
         # ── bottom button bar ──
         bot = QHBoxLayout()
         bot.setSpacing(8)
-        self._rename_info_lbl = QLabel()
-        self._rename_info_lbl.setTextFormat(Qt.RichText)
-        self._rename_info_lbl.setStyleSheet("color:#888; font-size:11px;")
-        bot.addWidget(self._rename_info_lbl)
+        self._export_info_lbl = QLabel()
+        self._export_info_lbl.setWordWrap(True)
+        self._export_info_lbl.setStyleSheet("color:#888; font-size:11px;")
+        bot.addWidget(self._export_info_lbl)
         bot.addStretch()
 
         self._cancel_btn = QPushButton()
@@ -225,13 +239,18 @@ class CalcDatasetDialog(QDialog):
         self._cancel_btn.clicked.connect(self.reject)
         bot.addWidget(self._cancel_btn)
 
-        self._apply_btn = QPushButton()
-        self._apply_btn.setStyleSheet("background:#4CAF50; color:white; font-weight:bold;")
-        self._apply_btn.setEnabled(False)
-        self._apply_btn.clicked.connect(self._apply_rename)
-        bot.addWidget(self._apply_btn)
+        self._export_btn = QPushButton()
+        self._export_btn.setStyleSheet("background:#4CAF50; color:white; font-weight:bold;")
+        self._export_btn.setEnabled(False)
+        self._export_btn.clicked.connect(self._export_toml)
+        bot.addWidget(self._export_btn)
 
         root.addLayout(bot)
+        self._ratio_edit.textChanged.connect(self._clear_results)
+        self._batch_spin.valueChanged.connect(self._clear_results)
+        self._epoch_spin.valueChanged.connect(self._clear_results)
+        self._ceil_cb.toggled.connect(self._clear_results)
+        self._caption_combo.currentIndexChanged.connect(self._caption_changed)
 
     # ── i18n ──────────────────────────────────────────────────────────────────
 
@@ -275,8 +294,11 @@ class CalcDatasetDialog(QDialog):
 
         # Summary / bottom
         self._total_steps_lbl.setText(tr("calc_total_steps_empty"))
-        self._rename_info_lbl.setText(tr("calc_rename_info"))
-        self._apply_btn.setText(tr("calc_apply_rename_btn"))
+        self._export_info_lbl.setText(tr("calc_export_info"))
+        self._format_lbl.setText(tr("calc_export_format"))
+        self._resolution_lbl.setText(tr("calc_export_resolution"))
+        self._caption_lbl.setText(tr("calc_export_caption"))
+        self._export_btn.setText(tr("calc_export_btn"))
         self._cancel_btn.setText(tr("calc_cancel_btn"))
 
     # ── scanning ──────────────────────────────────────────────────────────────
@@ -295,7 +317,13 @@ class CalcDatasetDialog(QDialog):
             QMessageBox.warning(self, tr("calc_no_folder_title"), tr("calc_no_folder_msg"))
             return
         self.root_folder = root
-        self._folders = _scan_folders(root)
+        try:
+            folders = _scan_folders(root, self._caption_combo.currentText())
+        except OSError as exc:
+            QMessageBox.warning(self, tr("calc_export_error"), str(exc))
+            self._clear_results()
+            return
+        self._folders = folders
         self._populate_folder_table()
         self._clear_results()
         self._status_lbl.setText(
@@ -310,6 +338,7 @@ class CalcDatasetDialog(QDialog):
 
             cb = QCheckBox()
             cb.setChecked(True)
+            cb.toggled.connect(self._clear_results)
             cb.setStyleSheet("margin-left:10px;")
             self._folder_table.setCellWidget(row, 0, cb)
 
@@ -329,6 +358,7 @@ class CalcDatasetDialog(QDialog):
             cb = self._folder_table.cellWidget(row, 0)
             if cb:
                 cb.setChecked(True)
+            cb.toggled.connect(self._clear_results)
 
     def _deselect_all_folders(self):
         for row in range(self._folder_table.rowCount()):
@@ -352,6 +382,8 @@ class CalcDatasetDialog(QDialog):
                 ratios.append(float(p))
             except ValueError:
                 raise ValueError(f"Invalid ratio value: '{p}'")
+        if any(not math.isfinite(value) or value <= 0 for value in ratios):
+            raise ValueError(tr("calc_ratio_positive"))
         while len(ratios) < n:
             ratios.append(ratios[-1])
         return ratios[:n]
@@ -448,7 +480,7 @@ class CalcDatasetDialog(QDialog):
                batch=batch,
                epochs=epochs)
         )
-        self._apply_btn.setEnabled(True)
+        self._export_btn.setEnabled(True)
 
     def _clear_results(self):
         self._results = []
@@ -457,53 +489,41 @@ class CalcDatasetDialog(QDialog):
         self._total_images_lbl.setText("")
         self._result_lbl.setText(tr("calc_results_pending"))
         self._result_lbl.setStyleSheet("color:#aaa; font-style:italic;")
-        self._apply_btn.setEnabled(False)
+        self._export_btn.setEnabled(False)
 
-    # ── apply rename ──────────────────────────────────────────────────────────
+    def _caption_changed(self):
+        self._clear_results()
+        if self.root_folder:
+            self._scan()
 
-    def _apply_rename(self):
+    def _export_toml(self):
         if not self._results:
             return
-
-        preview_lines = []
-        for r in self._results:
-            fd       = self._folders[r["folder_idx"]]
-            new_name = f"{r['repeat']}_{r['base_name']}"
-            if fd["name"] != new_name:
-                preview_lines.append(f"  {fd['name']}  ->  {new_name}")
-
-        if not preview_lines:
-            QMessageBox.information(self, tr("calc_nothing_rename_title"),
-                                    tr("calc_nothing_rename_msg"))
+        try:
+            content = build_dataset_toml(
+                self._results, self._format_combo.currentData(),
+                self._resolution_spin.value(), self._batch_spin.value(),
+                self._caption_combo.currentText())
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, tr("calc_export_error"), str(exc))
             return
-
-        resp = QMessageBox.question(
-            self, tr("calc_confirm_rename_title"),
-            tr("calc_confirm_rename_msg", preview="\n".join(preview_lines)),
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if resp != QMessageBox.Yes:
+        filename, _ = QFileDialog.getSaveFileName(
+            self, tr("calc_export_btn"), "dataset.toml", "TOML (*.toml)")
+        if not filename:
             return
-
-        errors, renamed = [], 0
-        for r in self._results:
-            fd       = self._folders[r["folder_idx"]]
-            new_name = f"{r['repeat']}_{r['base_name']}"
-            new_path = os.path.join(os.path.dirname(fd["path"]), new_name)
-            if fd["path"] == new_path:
-                continue
-            try:
-                from backup_manager import backup_folder
-                backup_folder(fd["path"], "rename_dataset_folder")
-                os.rename(fd["path"], new_path)
-                fd.update(path=new_path, name=new_name, existing_repeat=r["repeat"])
-                renamed += 1
-            except Exception as e:
-                errors.append(f"{fd['name']}: {e}")
-
-        self._populate_folder_table()
-        msg = tr("calc_rename_done_msg", count=renamed)
-        if errors:
-            msg += "\n\n" + tr("calc_rename_errors", errors="\n".join(errors))
-        QMessageBox.information(self, tr("calc_rename_done_title"), msg)
-        self._clear_results()
+        if not filename.lower().endswith('.toml'):
+            filename += '.toml'
+        output = QSaveFile(filename)
+        if not output.open(QIODevice.WriteOnly):
+            QMessageBox.warning(self, tr("calc_export_error"), output.errorString())
+            return
+        data = content.encode('utf-8')
+        if output.write(data) != len(data):
+            error = output.errorString()
+            output.cancelWriting()
+            QMessageBox.warning(self, tr("calc_export_error"), error)
+            return
+        if not output.commit():
+            QMessageBox.warning(self, tr("calc_export_error"), output.errorString())
+            return
+        QMessageBox.information(self, tr("save_success"), tr("calc_export_saved", path=filename))

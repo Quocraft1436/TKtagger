@@ -4,10 +4,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from backup_manager import backup_folder, backup_api_folder, BACKUP_DIR
-from file_ops import load_folder_images, save_all_images, save_tags, populate_folder_tree, _write_tags, load_tags
-from file_formats import SUPPORTED_FORMATS
-from history_manager import HistoryManager
+from libs.backup_manager import backup_folder, backup_api_folder, BACKUP_DIR
+from libs.file_ops import load_folder_images, save_all_images, save_tags, populate_folder_tree, _write_tags, load_tags
+from libs.file_formats import SUPPORTED_FORMATS
+from libs.history_manager import HistoryManager
 
 
 class DatasetSafetyTests(unittest.TestCase):
@@ -19,7 +19,7 @@ class DatasetSafetyTests(unittest.TestCase):
         self.caption = self.folder / 'sample.txt'
         self.caption.write_text('original, tag', encoding='utf-8')
         (self.folder / 'sample.png').write_bytes(b'original image bytes')
-        self.ext = patch('file_ops._get_tag_extension', return_value='txt')
+        self.ext = patch('libs.file_ops._get_tag_extension', return_value='txt')
         self.ext.start()
         self.addCleanup(self.ext.stop)
 
@@ -62,7 +62,7 @@ class DatasetSafetyTests(unittest.TestCase):
         images = self.images() + load_folder_images(str(other))
         for img in images:
             img.update(tags=['changed'], modified=True)
-        with patch('file_ops.backup_folder', side_effect=[Path('unused'), OSError('disk full')]):
+        with patch('libs.file_ops.backup_folder', side_effect=[Path('unused'), OSError('disk full')]):
             with self.assertRaises(OSError):
                 save_all_images(images)
         self.assertEqual(self.caption.read_text(), 'original, tag')
@@ -70,7 +70,7 @@ class DatasetSafetyTests(unittest.TestCase):
         self.assertTrue(all(img['modified'] for img in images))
 
     def test_partial_copy_never_becomes_complete_backup(self):
-        with patch('backup_manager.shutil.copytree', side_effect=OSError('copy failed')):
+        with patch('libs.backup_manager.shutil.copytree', side_effect=OSError('copy failed')):
             self.assertFalse(save_tags(str(self.caption), ['lost']))
         self.assertEqual(self.caption.read_text(), 'original, tag')
         entries = list((self.folder.parent / BACKUP_DIR).glob('*/*'))
@@ -80,7 +80,7 @@ class DatasetSafetyTests(unittest.TestCase):
     def test_atomic_failure_preserves_original_and_modified_flag(self):
         images = self.images()
         images[0].update(tags=['changed'], modified=True)
-        with patch('file_ops.os.replace', side_effect=OSError('replace failed')):
+        with patch('libs.file_ops.os.replace', side_effect=OSError('replace failed')):
             with self.assertRaises(OSError):
                 save_all_images(images)
         self.assertEqual(self.caption.read_text(), 'original, tag')
@@ -89,7 +89,7 @@ class DatasetSafetyTests(unittest.TestCase):
                          {'sample.png', 'sample.txt'})
 
     def test_custom_extension_and_unicode(self):
-        with patch('file_ops._get_tag_extension', return_value='cap'):
+        with patch('libs.file_ops._get_tag_extension', return_value='cap'):
             self.assertTrue(save_tags(str(self.caption), ['tiếng Việt', 'ảnh']))
             self.assertEqual(self.images()[0]['tags'], ['tiếng Việt', 'ảnh'])
         self.assertEqual(self.caption.read_text(), 'original, tag')
@@ -99,8 +99,8 @@ class DatasetSafetyTests(unittest.TestCase):
             image = self.folder / ('sample' + suffix)
             image.write_bytes(b'original image bytes')
             for ext in (suffix[1:], suffix, suffix.upper(), ' ' + suffix.upper() + ' '):
-                with self.subTest(ext=ext), patch('file_ops._get_tag_extension', return_value=ext), \
-                     patch('file_ops.backup_folder') as backup:
+                with self.subTest(ext=ext), patch('libs.file_ops._get_tag_extension', return_value=ext), \
+                     patch('libs.file_ops.backup_folder') as backup:
                     self.assertFalse(save_tags(str(self.caption), ['new tag']))
                     images = [dict(txt_path=str(self.caption), tags=['new tag'], modified=True)]
                     with self.assertRaises(ValueError):
@@ -126,7 +126,7 @@ class DatasetSafetyTests(unittest.TestCase):
                     load_folder_images(str(self.folder), extension=ext)
 
     def test_caption_extension_is_normalized_for_read_and_write(self):
-        with patch('file_ops._get_tag_extension', return_value=' .CAP '):
+        with patch('libs.file_ops._get_tag_extension', return_value=' .CAP '):
             self.assertTrue(save_tags(str(self.caption), ['caption tag']))
             self.assertEqual(load_tags(str(self.caption)), ['caption tag'])
         self.assertEqual(self.caption.with_suffix('.cap').read_text(), 'caption tag')

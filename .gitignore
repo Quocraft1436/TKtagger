@@ -10,8 +10,10 @@ settings.ini
 todo.txt
 defualt_dictbook.json
 preset_user.json
-# Local snapshots and generated ATE datasets
+
+# Local snapshots and generated test datasets
 backups/
 .tktagger-backups/
 tests/artifacts/
 
+tests/

@@ -14,13 +14,13 @@ from PySide6.QtWidgets import (
     QComboBox,
 )
 from PySide6.QtCore import Qt, Signal, Slot
-from PySide6.QtGui import QAction, QKeySequence, QShortcut, QIcon
+from PySide6.QtGui import QAction, QIcon
 
-from history_manager import HistoryManager
+from libs.history_manager import HistoryManager
 from history_window import HistoryWindow
-from file_ops import load_folder_images, save_all_images
-from backup_manager import BACKUP_DIR
-from folder_loader import FolderLoader
+from libs.file_ops import load_folder_images, save_all_images
+from libs.backup_manager import BACKUP_DIR
+from libs.folder_loader import FolderLoader
 from image_grid import ImageGrid
 from tag_panel import TagPanel
 from dialogs import AboutDialog
@@ -35,9 +35,11 @@ from tools.resort_tag_window_operation import run_operation_sort_tag
 
 from settings_dialog import SettingsDialog
 from preview_dock import PreviewDock
-from settings_manager import settings
-from i18n import tr, set_language, get_language
-from table_icon import get_icon, get_icon_size
+from libs.settings_manager import settings
+from libs.shortcut_manager import ShortcutManager
+from libs.workspace_manager import WorkspaceManager
+from libs.i18n import tr, set_language, get_language
+from libs.table_icon import get_icon, get_icon_size
 
 class MainWindow(QMainWindow):
 
@@ -91,6 +93,7 @@ class MainWindow(QMainWindow):
         self._connect_tagging_signals()
 
         self.resize(1024, 720)
+        self.workspace = WorkspaceManager(self)
 
     # ──────────────────────────────────────────────
     #  Language switcher
@@ -116,6 +119,7 @@ class MainWindow(QMainWindow):
         self._act_settings.setText(tr("menu_preferences"))
         self._act_open.setText(tr("menu_open_folder"))
         self.recent_menu.setTitle(tr("menu_open_recent"))
+        self._act_clear_recent.setText(tr("recent_clear"))
         self._act_save.setText(tr("ldl_save"))
         self._act_quit.setText(tr("menu_quit"))
         self._edit_menu.setTitle(tr("menu_edit"))
@@ -191,22 +195,20 @@ class MainWindow(QMainWindow):
         # File – use empty strings; retranslate_ui fills them
         self._file_menu = menubar.addMenu("")
         self._act_open = QAction("", self)
-        self._act_open.setShortcut(QKeySequence.Open)
         self._act_open.triggered.connect(self.select_root_folder)
 
+        self._act_clear_recent = QAction("", self)
+        self._act_clear_recent.triggered.connect(self.clear_recent_history)
         self.recent_menu = self._file_menu.addMenu("")
         self.update_recent_menu()
 
         self._act_save = QAction("", self)
-        self._act_save.setShortcut(QKeySequence.Save)
         self._act_save.triggered.connect(self.save_all)
 
         self._act_settings = QAction("", self)
-        self._act_settings.setShortcut(QKeySequence.Preferences)
         self._act_settings.triggered.connect(self.open_settings)
 
         self._act_quit = QAction("", self)
-        self._act_quit.setShortcut(QKeySequence.Quit)
         self._act_quit.triggered.connect(self.close)
 
         self._file_menu.addAction(self._act_open)
@@ -218,12 +220,10 @@ class MainWindow(QMainWindow):
         # Edit
         self._edit_menu = menubar.addMenu("")
         self.act_undo = QAction("", self)
-        self.act_undo.setShortcut(QKeySequence.Undo)
         self.act_undo.setEnabled(False)
         self.act_undo.triggered.connect(self.do_undo)
 
         self.act_redo = QAction("", self)
-        self.act_redo.setShortcut(QKeySequence.Redo)
         self.act_redo.setEnabled(False)
         self.act_redo.triggered.connect(self.do_redo)
 
@@ -231,25 +231,18 @@ class MainWindow(QMainWindow):
         self._act_history_action.triggered.connect(self.show_history_window)
 
         self.act_select_all = QAction("", self)
-        self.act_select_all.setShortcut(QKeySequence.SelectAll)
         self.act_select_all.triggered.connect(self.select_all_images)
 
         self.act_deselect_all = QAction("", self)
-        self.act_deselect_all.setShortcut(QKeySequence("Ctrl+D"))
         self.act_deselect_all.triggered.connect(self.deselect_all_images)
 
         self.act_invert_selection = QAction("", self)
-        self.act_invert_selection.setShortcut(QKeySequence("Ctrl+I"))
         self.act_invert_selection.triggered.connect(self.invert_image_selection)
-
-        self.act_nuke_selection = QAction("", self)
-        self.act_nuke_selection.triggered.connect(self.nuke_tags_from_selected)
 
         self._edit_menu.addAction(self.act_undo)
         self._edit_menu.addAction(self.act_redo)
         self._edit_menu.addSeparator()
         self._edit_menu.addAction(self._act_history_action)
-        self._edit_menu.addAction(self.act_nuke_selection)
         self._edit_menu.addSeparator()
         self._edit_menu.addAction(self.act_select_all)
         self._edit_menu.addAction(self.act_deselect_all)
@@ -262,25 +255,23 @@ class MainWindow(QMainWindow):
         self._act_rm_dup = QAction("", self)
         self._act_rm_dup.triggered.connect(self.remove_duplicate_tags)
 
+        self.act_nuke_selection = QAction("", self)
+        self.act_nuke_selection.triggered.connect(self.nuke_tags_from_selected)
+
         self._act_sort = QAction("", self)
         self._act_sort.triggered.connect(self.sort_tags)
 
         self._act_underscore_swap = QAction("", self)
         self._act_underscore_swap.triggered.connect(self.underscore_swap_tags)
-        self._act_underscore_swap.setShortcuts(["Ctrl+Shift+U"])
 
         self._act_waifu = QAction("", self)
         self._act_waifu.triggered.connect(self.open_waifu_tagger)
 
         self._act_calc_dataset = QAction("", self)
         self._act_calc_dataset.triggered.connect(self.open_calc_dataset)
-        self._act_calc_dataset.setShortcuts(["Ctrl+Shift+D", "F9"])
 
-        self._act_rm_dup.setShortcuts(["Ctrl+E", "F5"])
-        self._act_sort.setShortcuts(["Ctrl+R", "F6"])
-        self._act_waifu.setShortcuts(["Ctrl+T", "F8"])
-        self._act_underscore_swap.setShortcuts(["Ctrl+Shift+U"])
         self.tool_menu.addAction(self._act_rm_dup)
+        self.tool_menu.addAction(self.act_nuke_selection)
         self.tool_menu.addAction(self._act_sort)
         self.tool_menu.addAction(self._act_underscore_swap)
         self.tool_menu.addSeparator()
@@ -310,6 +301,7 @@ class MainWindow(QMainWindow):
         self._act_about.triggered.connect(lambda: AboutDialog(self).exec())
         self._help_menu.addAction(self._act_about)
 
+        self.shortcut_manager = ShortcutManager(self)
         self.history.add_callback(self._update_undo_redo_actions)
 
     def setup_ui(self):
@@ -391,7 +383,10 @@ class MainWindow(QMainWindow):
         self.image_grid.tag_insert_requested.connect(self._insert_tag_to_global)
         self.image_grid.tag_remove_requested.connect(self._on_individual_tag_remove)
         center_layout.addWidget(self.image_grid, stretch=1)
-        self.col_spin.setValue(self.image_grid._cols)
+        self.image_grid.columns_changed.connect(self._sync_grid_columns)
+        self.image_grid.set_card_height_mode(settings.value("grid_card_height", "medium"))
+        self.apply_grid_layout(settings.value("grid_layout_mode", "classic"))
+        self._sync_grid_columns(self.image_grid._cols)
 
         # Bottom global tag bar
         bottom_bar = QWidget()
@@ -481,6 +476,10 @@ class MainWindow(QMainWindow):
         # Kết nối preview signal từ image_grid
         self.image_grid.preview_requested.connect(self._preview_dock.show_image)
         self.image_grid.preview_requested.connect(lambda _: self._preview_dock.show())
+        self.history_dock = HistoryWindow(self.history, parent=self)
+        self.history_win = self.history_dock
+        self.addDockWidget(Qt.RightDockWidgetArea, self.history_dock)
+        self.history_dock.hide()
 
     def open_settings(self):
         """Open Settings/Preferences dialog"""
@@ -501,6 +500,8 @@ class MainWindow(QMainWindow):
             no_recent_act = QAction(tr("recent_none"), self)
             no_recent_act.setEnabled(False)
             self.recent_menu.addAction(no_recent_act)
+            self._act_clear_recent.setEnabled(False)
+            self.recent_menu.addAction(self._act_clear_recent)
             return
 
         for folder in recent_folders:
@@ -510,9 +511,8 @@ class MainWindow(QMainWindow):
                 self.recent_menu.addAction(action)
 
         self.recent_menu.addSeparator()
-        clear_act = QAction(tr("recent_clear"), self)
-        clear_act.triggered.connect(self.clear_recent_history)
-        self.recent_menu.addAction(clear_act)
+        self._act_clear_recent.setEnabled(True)
+        self.recent_menu.addAction(self._act_clear_recent)
 
     def _load_recent_folder(self, folder):
         self._set_active_directory(folder)
@@ -908,6 +908,7 @@ class MainWindow(QMainWindow):
     def show_history_window(self):
         if not hasattr(self, 'history_dock') or self.history_dock is None:
             self.history_dock = HistoryWindow(self.history, parent=self)
+            self.history_win = self.history_dock
             self.addDockWidget(Qt.RightDockWidgetArea, self.history_dock)
             self.history_dock.show()
             return
@@ -986,7 +987,7 @@ class MainWindow(QMainWindow):
             return
 
         # Tách chuỗi theo dấu phẩy
-        tags_to_add = [t.strip() for t in raw.split(',') if t.strip()]
+        tags_to_add = list(dict.fromkeys(t.strip() for t in raw.split(',') if t.strip()))
         if not tags_to_add:
             QMessageBox.warning(self, tr("warn_no_tag"), tr("warn_no_tag_msg"))
             return
@@ -997,15 +998,14 @@ class MainWindow(QMainWindow):
         insert_at_beginning = self._order_tag_combo.currentIndex() == 0
 
         for idx in list(self._selected_images):
-            modified = False
-            for tag in tags_to_add:
-                if tag not in self.images[idx]['tags']:
-                    if insert_at_beginning:
-                        self.images[idx]['tags'].insert(0, tag)
-                    else:
-                        self.images[idx]['tags'].append(tag)
-                    modified = True
-            if modified:
+            tags = self.images[idx]['tags']
+            existing = set(tags)
+            new_tags = [tag for tag in tags_to_add if tag not in existing]
+            if new_tags:
+                if insert_at_beginning:
+                    tags[:0] = new_tags
+                else:
+                    tags.extend(new_tags)
                 self.images[idx]['modified'] = True
                 self.image_grid.refresh_card(idx)
                 count += 1
@@ -1118,6 +1118,20 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, tr("delete_done"),
                                 tr("delete_done_msg", tag=", ".join(selected), tag_count=len(selected), img_count=count))
                                 
+    def _sync_grid_columns(self, columns):
+        self.col_spin.blockSignals(True)
+        self.col_spin.setMaximum(max(8, columns))
+        self.col_spin.setValue(columns)
+        self.col_spin.blockSignals(False)
+
+    def apply_grid_layout(self, mode):
+        self.image_grid.set_layout_mode(mode)
+        manual = self.image_grid.layout_mode == "classic"
+        self.col_spin.setEnabled(manual)
+        self._col_lbl.setEnabled(manual)
+        if hasattr(self, 'workspace'):
+            self.workspace.schedule_save()
+
     def _set_columns(self, n: int):
         self.image_grid.set_columns(n)
 
@@ -1451,3 +1465,5 @@ class MainWindow(QMainWindow):
                 event.ignore()
         else:
             event.accept()
+        if event.isAccepted() and hasattr(self, 'workspace'):
+            self.workspace.finish_close()

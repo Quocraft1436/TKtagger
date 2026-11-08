@@ -5,8 +5,8 @@ from copy import deepcopy
 import unittest
 from unittest.mock import Mock, patch
 
-from PySide6.QtWidgets import QApplication, QMainWindow, QLineEdit
-from history_manager import HistoryManager
+from PySide6.QtWidgets import QApplication, QMainWindow, QLineEdit, QComboBox
+from libs.history_manager import HistoryManager
 from image_grid import ImageGrid
 from main_window import MainWindow
 
@@ -33,6 +33,8 @@ class SelectionSyncTests(unittest.TestCase):
         win.tag_panel._tag_filters = {}
         win._dict_data = {}
         win.global_tag_entry = QLineEdit(win)
+        win._order_tag_combo = QComboBox(win)
+        win._order_tag_combo.addItems(['Beginning', 'End'])
         win.image_grid = ImageGrid(win)
         win.image_grid.selection_changed.connect(win._on_selection_changed)
         win._load_all_folder_tags()
@@ -75,6 +77,42 @@ class SelectionSyncTests(unittest.TestCase):
                 warning.assert_called_once()
                 question.assert_not_called()
                 self.assertEqual(win.images, expected)
+
+    def test_bulk_tag_order_duplicates_and_history(self):
+        win = self.win
+        for mode, raw, expected in (
+            (0, 'a, b', ['a', 'b', 'original']),
+            (0, ' a, , b, a, original, b, ', ['a', 'b', 'original']),
+            (1, ' a, b, a, original, ', ['original', 'a', 'b']),
+        ):
+            with self.subTest(mode=mode, raw=raw):
+                win.images = [dict(path='', tags=['original'], modified=False),
+                              dict(path='', tags=['untouched'], modified=False)]
+                before = deepcopy(win.images)
+                win.history.clear()
+                win._load_all_folder_tags()
+                self.select_card()
+                win._order_tag_combo.setCurrentIndex(mode)
+                win.global_tag_entry.setText(raw)
+                win.add_tag_to_selected()
+                self.assertEqual(win.images[0]['tags'], expected)
+                self.assertTrue(win.images[0]['modified'])
+                self.assertEqual(win.images[1], before[1])
+                self.assert_cleared()
+                win.do_undo()
+                self.assertEqual([image['tags'] for image in win.images], [image['tags'] for image in before])
+                self.assertEqual(win.images[1], before[1])
+                win.do_redo()
+                self.assertEqual(win.images[0]['tags'], expected)
+
+    def test_adding_only_existing_tags_leaves_data_and_history_unchanged(self):
+        win = self.win
+        self.select_card()
+        win.global_tag_entry.setText('original, original, ')
+        win.add_tag_to_selected()
+        self.assertEqual(win.images[0]['tags'], ['original'])
+        self.assertFalse(win.images[0]['modified'])
+        self.assertFalse(win.history.can_undo())
 
     def test_layout_filter_and_language_rebuilds_preserve_visible_selection(self):
         self.select_card()

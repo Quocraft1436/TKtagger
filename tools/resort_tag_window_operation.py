@@ -1,4 +1,4 @@
-from app_paths import user_file
+from libs.app_paths import user_file
 import json
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -7,11 +7,11 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
-from i18n import tr
+from libs.i18n import tr
 from pathlib import Path
-from libs.draggable_list import DraggableListManager
+from libs.shared.draggable_list import DraggableListManager
 from tools.dict_tags import VirtualTagEngine
-from table_icon import get_icon, get_icon_size
+from libs.table_icon import get_icon, get_icon_size
 
 class ResortTagsDialog(QDialog):
     def __init__(self, all_tags: list, dict_data, dict_path=None, parent=None):

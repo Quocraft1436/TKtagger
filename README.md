@@ -1,213 +1,142 @@
-# TKtagger
+<p align="center">
+  <img src="icons/tktagger.svg" alt="TKtagger icon" width="80" height="80">
+</p>
 
-A powerful image tagging tool built with PySide6, supporting WD14 Tagger and bulk tag management.
+<h1 align="center">TKtagger Desktop</h1>
 
-> **Note:** This project uses AI assistance for coding.
+<p align="center">
+  <a href="README.md">English</a> · <a href="README_VI.md">Tiếng Việt</a>
+</p>
 
----
+TKtagger is a desktop application for preparing and reviewing image captions for AI training datasets. It brings image browsing, manual tag editing, batch cleanup and WD14 automatic tagging into a PySide6 interface for Windows and Linux.
 
-## Interface
+The workspace combines a folder tree, an image grid, a tag panel, image preview and operation history. Review model-generated tags, keep naming consistent with a dictionary, and export dataset repeats as TOML for your trainer. You can adjust the grid, customize keyboard shortcuts and save the dock layout to suit your workflow.
 
-![Main Interface](src/Screenshot_20260831_112158.png)
+![TKtagger desktop interface](src/Screenshot_20260831_112158.png)
 
-English (README.md), Tiếng Việt (src/README_VN.md)
+*Interface screenshot; some controls have changed in version 1.5.2.*
 
----
+## Who this is for
 
-## Features
+This guide assumes you already understand basic AI training concepts: datasets, captions/tags, LoRA, repeats, batch size and epochs. TKtagger helps prepare the dataset; model selection and training parameters are configured in your training tool. Review automatic tags before using them for training.
 
-- **Bulk tag editing** — Add, remove, replace, or sort tags across multiple images at once
-- **WD14 Tagger** — Automatic tagging via a local model or an installed tool’s Python / models
-- **Undo / Redo** — Up to 256 steps with a full operation history window (`Edit → Operation history` or `🕐 History`)
-- **Tag search** — Filter and find tags across your image set quickly with JEI-style multi-token search
-- **Quick tag interaction** — Click directly on a tag to delete or insert
-- **Optimized image loading** — Reduced memory usage and faster display
-- **Multi-language support** — English, Vietnamese, Simplified Chinese (ZH), Korean (KO), Japanese (JA/JP), and Russian (RU)
-- **Command-line argument** — Launch directly into a folder: `python main.py [path_folder]`
-- **Dictionary system** — Organize tags into named groups with virtual tag expansion
-- **Resort by groups** — Reorder tags in `.txt` files according to dictionary group order, with ~~`BREAK`~~ `NewLine` ~~separator support for Kohya training~~ for visual look extenal editor
+## AI-assisted development
 
----
+This project uses AI coding tools to help write and refactor code, investigate issues and prepare documentation. We disclose that assistance openly. Changes should be reviewed and checked with automated testing; AI-generated code can still contain mistakes. Reproducible bug reports help improve the application.
 
-## Quick launch and packages
+## Documentation
 
-Linux: double-click `TKtagger.desktop` (generate with `python build/create_shortcut.py`)
-or run `./launch.sh`. Windows: double-click `launch.cmd`. Use `--setup` once if
-PySide6 is missing; the launcher installs it into a private `.venv`.
+- [Quick tutorial](tutorial.md): opening a dataset, interface basics, shortcuts, tag editing, batch tools and WD14.
+- [Project structure — Tiếng Việt](Project_Structure.md): the main modules and their responsibilities.
+- [Automated testing](tests/README.md): regression checks and image-grid benchmarks.
+
+## Main features
+
+- **Image browsing:** folder navigation, a virtual image grid and background thumbnail loading.
+- **Flexible cards:** Classic or Auto fit grid, with Moderate, Taller or Full tag content heights.
+- **Tag editing:** add or remove comma-separated tags on selected images; insert at the beginning or end in the entered order.
+- **Batch tools:** remove duplicates, replace tags, reorder by dictionary groups and switch underscores/spaces.
+- **WD14 tagging:** run a local ONNX model or reuse an installed kohya_ss / sd-scripts Python environment and model files.
+- **Undo / Redo:** tag-edit history across cached folders, with a history panel and a configurable entry limit.
+- **Tag dictionaries:** organize groups and use virtual tag expansion.
+- **Dataset Calculator:** calculate repeats and export dataset TOML for kohya_ss / sd-scripts or Musubi Tuner.
+- **Custom shortcuts:** primary and alternative bindings for File, Edit and Tool menu commands, with conflict checks.
+- **Saved workspace:** save, import/export JSON, reset or enable automatic saving of dock layout and editing preferences.
+- **Dataset backup:** folder snapshots before saving changed captions.
+
+## Launch on Windows
+
+Install Python with the `py` launcher, pip and venv available. Open PowerShell in the project folder.
+
+First launch, or when PySide6 is missing:
+
+```powershell
+.\launch.cmd --setup
+```
+
+This creates `.venv`, installs the GUI requirements and starts the application. Later, double-click `launch.cmd` or run:
+
+```powershell
+.\launch.cmd
+```
+
+To open a dataset directly:
+
+```powershell
+.\launch.cmd "D:\datasets\my_dataset"
+```
+
+## Launch on Linux
+
+Make sure `python3`, pip and venv are available. Open a terminal in the project folder.
+
+First launch, or when PySide6 is missing:
 
 ```bash
-./build/build.sh                    # AppImage GUI on Linux
-./build/build.sh --with-onnx        # Include local ONNX libraries
-./build/build.sh --download-model   # Include ONNX + download/bundle WD14 model
+sh ./launch.sh --setup
 ```
 
-On Windows use `build\build.cmd` with the same flags to build an EXE.
-See [build instructions](build/README.md) for offline models, GPU options,
-output locations and writable settings in packaged builds.
-
-## Installation
+Later launches:
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+sh ./launch.sh
+
+# Open a dataset directly
+sh ./launch.sh "/path/to/my_dataset"
 ```
 
-For inference inside TKtagger's own venv, optionally install
-`pip install -r requirements-local.txt`. The installed-tool mode only needs
-PySide6 in TKtagger; numpy, Pillow and onnxruntime are reused from the tool.
+The launchers prefer the project's `.venv`, then `venv`, then the system Python. The basic setup installs the GUI; [the tutorial](tutorial.md#5-wd14-tagger) explains local WD14 dependencies and reuse of an installed tool.
 
-## WD14: reuse an installed tool
+## Supported interface languages
 
-Choose **Installed tool** instead of the former API mode, then:
+**6 languages:** English (`en`), Vietnamese (`vi`), Simplified Chinese (`zh`), Korean (`ko`), Japanese (`ja`, also accepting the `jp` alias) and Russian (`ru`).
 
-1. Browse to the Kohya_ss or sd-scripts installation folder.
-2. Select **Auto detect**, **Kohya_ss**, or **sd-scripts**, then click **Scan**.
-3. Confirm the detected Python (`.venv`, `venv`, or `env`); you can browse to
-   another Python executable if the venv has moved or uses a different layout.
-4. Choose a detected ONNX model. Only pairs with `selected_tags.csv` are listed.
-   You can also specify the ONNX and CSV files manually.
+Choose the interface language in **Settings → General**. README translations are available in English and Vietnamese through the links above.
 
-Kohya_ss maps models under `wd14_tagger_model/`; sd-scripts checks
-`wd14_tagger_model/` and `models/`. Existing model files are read in place;
-this mode does not download models, copy the venv, or start a Gradio server.
-Tool type maps model locations; inference uses TKtagger's ONNX worker with the
-selected tool's Python, rather than invoking its caption-writing scripts.
-The selected tool, Python and model are remembered between runs.
+## Automated testing and dataset backup
 
-Both modes keep results in RAM until **Save**, including results for unopened
-subfolders. Undo/Redo records changes per folder. You may browse folders while
-inference runs; opening another root folder and closing the application wait
-until it finishes. With **Include subfolders** enabled, the current collection
-scope starts at the dataset root shown in the folder tree.
+Run the regression checks with the project Python after GUI setup:
 
-A mounted/copied venv must still be runnable on this machine; broken interpreter
-links or missing native/CUDA libraries require selecting a working Python.
-
-## Running
+```powershell
+# Windows
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
 
 ```bash
-python3 main.py
-
-# Open directly into a specific folder
-python3 main.py /path/to/folder_app
+# Linux
+./.venv/bin/python -m unittest discover -s tests -v
 ```
 
----
+See [Automated testing](tests/README.md) for the full runner and performance checks.
 
-## Keyboard Shortcuts
+Tag edits and WD14 results stay in memory until **Save**. Before writing changed captions, the application snapshots each affected folder under:
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+A` | Select all images |
-| `Ctrl+I` | Invert selection |
-| `Ctrl+D` | Deselect all |
-| `Ctrl+Z` | Undo |
-| `Ctrl+Y` | Redo |
-| `Ctrl+E` / `F5` | Remove duplicate tags |
-| `Ctrl+R` / `F6` | Sort tags operations|
-| `Ctrl+T` / `F8` | Open WD14 Tagger |
-| `Ctrl+Shift+D` / `F9` | Open Dataset Calculator |
-
----
-
-## Project Structure
-```
-TKtagger/
-│
-├── main.py                         # Entry point
-├── main_window.py                  # MainWindow (QMainWindow) — core UI
-├── settings_manager.py             # Singleton settings via ConfigParser (settings.ini)
-├── settings.ini                    # User settings file (auto-generated)
-│
-├── tag_panel.py                    # Right-side panel: tag list organized by folder
-├── image_grid.py                   # Image display grid and selection management
-├── file_ops.py                     # Load/save images & tags, build folder tree
-├── history_manager.py              # Undo/Redo stack manager
-├── history_window.py               # UI panel displaying Action History
-├── dialogs.py                      # AboutDialog and other small dialogs
-├── i18n.py                         # Internationalization (tr(), set_language())
-│
-├── default_dictbook.json           # Default dictionary included with the app
-├── requirements.txt                # Dependencies
-│
-├── lang/                           # Language files
-│   ├── en.json                     # English
-│   ├── vi.json                     # Vietnamese
-│   ├── zh.json                     # Simplified Chinese
-│   ├── ko.json                     # Korean
-│   ├── ja.json                     # Japanese (JP alias supported)
-│   └── ru.json                     # Russian
-│
-├── libs/                           # Reusable UI components
-│   └── draggable_list.py           # Draggable list widget with per-item deletion
-│
-├── tools/                          # Dataset processing tools
-│   ├── waifu_tagger_window.py      # WD14 Tagger — local or installed tool
-│   ├── tagger_logic.py             # ONNX inference (also used by the external worker)
-│   ├── calculator_dataset.py       # Dataset Calculator dialog
-│   ├── dict_tags.py                # Dict Tags manager + VirtualTagEngine
-│   ├── remove_duplicate_tags.py    # Remove duplicate tags in .txt files
-│   ├── replace_tags.py             # Replace tags dialog (bulk edit)
-│   └── resort_tag_window_operation.py  # Resort + Sort tags (merge from 2 old files)
-│
-└── src/                            # Assets
-├── Qt_logo_2016.svg
-└── Screenshot_*.png            # Preview images for README
+```text
+<parent>/.tktagger-backups/<folder>_<hash>/<timestamp>_<id>/
+├── data/
+└── manifest.json
 ```
 
----
+If backup fails, caption saving stops. Snapshots consume disk space and are kept until you remove them. Undo/Redo edits the current session; recovering files already written to disk uses the backup's `data/` folder. See the [tutorial](tutorial.md#8-save-captions-and-dataset-backup) for the save and recovery workflow.
 
-## Changelog [1.5.0] - 2026-08-31
+## Roadmap
 
-### Added
-- New tool: Swap Underscore (`tools/underscore_swap.py`) — toggles between
-underscores ("_") and spaces (" ") in tags; supports global application.
-- Menubar > Settings: new settings window (`settings_dialog.py`) allowing:
-- Selection of interface language (multi-language support, loaded from `lang/*.json`)
-- Selection of tag file format upon loading: .txt / .cap / custom extension
-- Setting the maximum history limit (`max_history` spinbox)
-- Positioning options for batch tag addition: insert at the start or end
-of the tag list (`add_tag_to_selected`).
-- Select All / Invert Selection / Deselect All buttons for the main tag filter panel
-(tag_panel.py).
-- Preset dictionary: saves the path and structure of the most recently used
-group dictionary to `preset_user.json` for quick reuse.
-- Functionality to import new tags not currently in the dictionary (`ImportNewTagsDialog`
-in dict_tags.py).
+- [x] Desktop image browsing, tag editing, dictionaries and WD14.
+- [x] Adaptive grid, card-height options and customizable shortcuts.
+- [x] Dataset TOML export and saved workspace layouts.
+- [ ] Improve large-dataset responsiveness based on measured bottlenecks.
+- [ ] Expand automated regression coverage and trainer-configuration checks.
+- [ ] Refine usability, translations and tutorials from user feedback.
 
-### Changed
-- Improved image card rendering performance: replaced multiple individual QLabels
-per tag with a custom-drawn widget, `TagRenderWidget` (using QPainter);
-tags are displayed as rounded-corner labels and are clickable for editing.
-- Comprehensive code refactoring (rewrote several modules: main_window, image_grid,
-dict_tags, resort_tag_window_operation).
+Future items describe maintenance priorities, not a fixed release schedule.
 
-### Fixed
-- Fixed tag reordering state synchronization issue: the interface (image cards,
-tag panel) now refreshes before the "complete" notification dialog appears,
-preventing the UI from lagging behind the notification.
+## Latest changelog — 1.5.2
 
-**Note:** Please note that this information was summarized and written by AI. ## Roadmap
-
-1. ✅ Basic tagger UI
-2. ✅ Integrated WD14
-3. ✅ Multi-language support
-4. ✅ System dictionary tags
-5. ✅ Redesigned UI
-
-Once the roadmap is complete, subsequent updates will mostly be minor, focusing on maintenance and bug fixes.
-
-## Automated testing and dataset backups
-
-Run `python -m tests.run_ate` for safety tests plus real Qt rendering of
-10,000 images in the virtual grid plus a smaller batch scenario, using
-RAM-backed PNGs by default. Only viewport cards exist at once; thumbnails decode
-on workers and use a bounded 64 MiB cache. Single-image edits store sparse
-history deltas and update tag counts without rebuilding the grid. Folder metadata
-loads in the background; the folder tree loads branches on expansion. Preview images and JSON reports live under `tests/artifacts/`.
-Disk dataset generation is opt-in via `--disk-count`. See
-[ATE instructions](tests/README.md) for thresholds, limitations and restoring
-the automatic folder backups created before dataset saves and renames.
-
-See [10,000-image sample](tests/performance_sample_10000.md) for measured results and limits.
+- Added Classic / Auto fit grid modes and three card-height options, including full tag content.
+- Added editable menu shortcuts with alternative bindings, conflict detection and default restoration.
+- Added workspace save, JSON import/export, automatic saving and reset.
+- Changed Dataset Calculator to export trainer-specific TOML with caption validation and unchanged dataset paths.
+- Documented local WD14 setup and reuse of an installed kohya_ss / sd-scripts environment.
+- Fixed reversed tag order when inserting multiple tags at the beginning.
+- Reorganized shared utilities and managers under `libs/`.
+- Expanded automated testing for layout, shortcuts, dataset export and tag history; documented dataset backup behavior.

@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from PySide6.QtWidgets import QApplication
-from file_formats import SUPPORTED_FORMATS, normalize_caption_extension
+from libs.file_formats import SUPPORTED_FORMATS, normalize_caption_extension
 from settings_dialog import SettingsDialog
 
 

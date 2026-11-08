@@ -2,7 +2,7 @@
 remove_duplicate_tags.py remove duplicate tags from images.
 """
 from PySide6.QtWidgets import QMessageBox
-from i18n import tr
+from libs.i18n import tr
 
 def run_remove_duplicates(win) -> bool:
     if not win.images:

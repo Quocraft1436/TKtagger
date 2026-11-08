@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QPoint, QSize
 from PySide6.QtGui import QPixmap, QCursor, QWheelEvent, QMouseEvent, QIcon
 
-from i18n import tr
+from libs.i18n import tr
 
 # ──────────────────────────────────────────────────────────
 #  Zoom canvas

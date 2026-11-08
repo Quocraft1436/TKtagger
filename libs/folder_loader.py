@@ -1,8 +1,8 @@
 """Read image metadata and lazy tree branches without blocking the Qt thread."""
 import os
 from PySide6.QtCore import QObject, Signal, Slot, QRunnable, QThreadPool, Qt
-from backup_manager import BACKUP_DIR
-from file_ops import load_folder_images
+from libs.backup_manager import BACKUP_DIR
+from libs.file_ops import load_folder_images
 
 
 def child_directories(path):

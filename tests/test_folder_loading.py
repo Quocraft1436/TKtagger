@@ -9,8 +9,8 @@ import unittest
 from unittest.mock import Mock, patch
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QTreeWidget
-from folder_loader import FolderLoader
-from history_manager import HistoryManager
+from libs.folder_loader import FolderLoader
+from libs.history_manager import HistoryManager
 from main_window import MainWindow
 
 
@@ -66,7 +66,7 @@ class FolderLoadingTests(unittest.TestCase):
             release.wait(2)
             return [dict(path=str(self.other / 'new.png'), tags=['new'], modified=False)]
         old_images = win.images
-        with patch('folder_loader.load_folder_images', side_effect=read):
+        with patch('libs.folder_loader.load_folder_images', side_effect=read):
             win._set_active_directory(str(self.other))
             self.assertTrue(started.wait(1))
             self.assertIs(win.images, old_images)
@@ -87,7 +87,7 @@ class FolderLoadingTests(unittest.TestCase):
     def test_failed_read_keeps_current_cache_and_history(self):
         win = self.win
         images, cache = win.images, win._folder_cache
-        with patch('folder_loader.load_folder_images', side_effect=OSError('disk unavailable')), \
+        with patch('libs.folder_loader.load_folder_images', side_effect=OSError('disk unavailable')), \
              patch('main_window.QMessageBox.critical') as error:
             win._request_folder(str(self.other), new_root=True)
             self.wait_for(lambda: win._pending_folder is None)
@@ -106,7 +106,7 @@ class FolderLoadingTests(unittest.TestCase):
             release.wait(2)
             return [dict(tags=['old disk caption'])]
         live = [dict(tags=['AI result'], modified=True)]
-        with patch('folder_loader.load_folder_images', side_effect=read):
+        with patch('libs.folder_loader.load_folder_images', side_effect=read):
             win._request_folder(str(self.other))
             self.assertTrue(started.wait(1))
             win._folder_cache[str(self.other)] = live

@@ -7,8 +7,10 @@ mẫu màu lặp lại; mỗi file có đường dẫn riêng. Filesystem cache 
 
 ## Cách tái hiện
 
+Module benchmark đã đổi tên thành `tests.gui_benchmark`; số đo mẫu được giữ nguyên.
+
 ```bash
-QT_QPA_PLATFORM=offscreen python -m tests.ate --storage disk --count 10000 --size 256 --tags 24 --mode virtual-grid --max-render-seconds 300 --max-rss-mb 1024
+QT_QPA_PLATFORM=offscreen python -m tests.gui_benchmark --storage disk --count 10000 --size 256 --tags 24 --mode virtual-grid --max-render-seconds 300 --max-rss-mb 1024
 ```
 
 [JSON số đo](performance_sample_10000.json) giữ kết quả của lần chạy mẫu;

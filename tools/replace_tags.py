@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QLineEdit, QFrame, QScrollArea, QWidget, QMessageBox
 )
-from i18n import tr
+from libs.i18n import tr
 
 
 class ReplaceTagsDialog(QDialog):

@@ -8,8 +8,8 @@ from unittest.mock import Mock, patch
 
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QMainWindow
-from file_ops import load_folder_images
-from history_manager import HistoryManager
+from libs.file_ops import load_folder_images
+from libs.history_manager import HistoryManager
 from main_window import MainWindow
 
 
@@ -28,7 +28,7 @@ class TaggerResultTests(unittest.TestCase):
         for image in self.paths:
             image.write_bytes(b'image')
             image.with_suffix('.txt').write_text('original')
-        extension = patch('file_ops._get_tag_extension', return_value='txt')
+        extension = patch('libs.file_ops._get_tag_extension', return_value='txt')
         extension.start()
         self.addCleanup(extension.stop)
         class TestWindow(MainWindow):

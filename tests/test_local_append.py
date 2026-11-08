@@ -5,7 +5,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
-from file_formats import SUPPORTED_FORMATS
+from libs.file_formats import SUPPORTED_FORMATS
 
 # Load the real backend in isolation. These tests exercise caption IO and the
 # local pipeline, not numpy/Pillow/ONNX inference; do not require AI packages.

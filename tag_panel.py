@@ -8,9 +8,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QIcon
-from table_icon import get_icon, get_icon_size
+from libs.table_icon import get_icon, get_icon_size
 
-from i18n import tr
+from libs.i18n import tr
 
 class TagPanel(QWidget):
     filter_changed         = Signal(dict)
