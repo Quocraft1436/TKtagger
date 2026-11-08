@@ -120,12 +120,14 @@ Tag edits and WD14 results stay in memory until **Save**. Before writing changed
 If backup fails, caption saving stops. Snapshots consume disk space and are kept until you remove them. Undo/Redo edits the current session; recovering files already written to disk uses the backup's `data/` folder. See the [tutorial](tutorial.md#8-save-captions-and-dataset-backup) for the save and recovery workflow.
 
 ## Roadmap
-
+- [x] Basic tagger UI
+- [x] Integrated WD14
+- [x] Multi-language support
+- [x] System dictionary tags
+- [x] Redesigned UI
 - [x] Desktop image browsing, tag editing, dictionaries and WD14.
 - [x] Adaptive grid, card-height options and customizable shortcuts.
 - [x] Dataset TOML export and saved workspace layouts.
-- [ ] Improve large-dataset responsiveness based on measured bottlenecks.
-- [ ] Expand automated regression coverage and trainer-configuration checks.
 - [ ] Refine usability, translations and tutorials from user feedback.
 
 Future items describe maintenance priorities, not a fixed release schedule.
